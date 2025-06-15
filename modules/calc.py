@@ -21,7 +21,7 @@ pd.options.display.float_format = "{:,.4f}".format
 
 # Precompile regex patterns for performance
 _strike_regex = compile(r"\d[A-Z](\d+)\d\d\d")
-_exp_date_regex = compile(r"[A-Z](\d+)")
+_exp_date_regex = compile(r"(\d{6})[CP]")
 
 
 @cached(cache=TTLCache(maxsize=16, ttl=60 * 60 * 4))  # in-memory cache for 4 hrs
