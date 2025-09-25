@@ -17,6 +17,13 @@ def fetch_and_convert():
 
         with open('szosho.json', 'w', encoding='utf-8') as f:
             json.dump(szosho_data, f, ensure_ascii=False, indent=4)
+        
+        # Extract RiskFreeRate and save to its own file
+        if 'RiskFreeRate' in szosho_data:
+            risk_free_rate = szosho_data['RiskFreeRate']
+            with open('szosho.RiskFreeRate.json', 'w', encoding='utf-8') as f:
+                json.dump({'RiskFreeRate': risk_free_rate}, f, ensure_ascii=False, indent=4)
+
 
         converted_data = convert_szosho_to_cboe(szosho_data)
 
