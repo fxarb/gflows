@@ -20,12 +20,19 @@ simplefilter(action="ignore", category=RuntimeWarning)
 pd.options.display.float_format = "{:,.4f}".format
 
 # Precompile regex patterns for performance
-_strike_regex = compile(r"\d[A-Z](\d+)\d\d\d")
-_exp_date_regex = compile(r"(\d{6})[CP]")
+_strike_regex = compile(r"\d[A-Z](\d+)\d\d\d")  # Regex for extracting strike price.
+_exp_date_regex = compile(r"(\d{6})[CP]")  # Regex for extracting expiration date.
 
 
 @cached(cache=TTLCache(maxsize=16, ttl=60 * 60 * 4))  # in-memory cache for 4 hrs
 def is_third_friday(date, tz):
+    """
+    Checks if a given date is the third Friday of the month.
+
+    :param date: The date to check.
+    :param tz: The timezone to use.
+    :return: A tuple containing the third Friday and the calendar range.
+    """
     _, last = monthrange(date.year, date.month)
     first = datetime(date.year, date.month, 1)
     last = datetime(date.year, date.month, last)
@@ -47,6 +54,12 @@ def is_third_friday(date, tz):
 # check 10 yr treasury yield
 @cached(cache=TTLCache(maxsize=16, ttl=60 * 15))  # in-memory cache for 15 min
 def check_ten_yr(date):
+    """
+    Checks the 10-year treasury yield for a given date.
+
+    :param date: The date to check.
+    :return: The 10-year treasury yield.
+    """
     data = Ticker("^TNX").history(start=date - timedelta(days=5), end=date)
     if data.empty:
         # no data for the date range so look back further
@@ -57,6 +70,12 @@ def check_ten_yr(date):
 
 
 def is_parsable(date):
+    """
+    Checks if a string can be parsed as a date.
+
+    :param date: The string to check.
+    :return: True if the string can be parsed as a date, False otherwise.
+    """
     try:
         datetime.strptime(date.split()[-2], "%H:%M")
         return True
@@ -65,6 +84,14 @@ def is_parsable(date):
 
 
 def format_data(data, today_ddt, tzinfo):
+    """
+    Formats the options data.
+
+    :param data: The options data.
+    :param today_ddt: The current date and time.
+    :param tzinfo: The timezone info.
+    :return: The formatted options data.
+    """
     keys_to_keep = ["option", "iv", "open_interest", "delta", "gamma"]
     data = pd.DataFrame([{k: d[k] for k in keys_to_keep if k in d} for d in data])
     data = pd.concat(
@@ -125,6 +152,19 @@ def calc_exposures(
     today_ddt,
     today_ddt_string,
 ):
+    """
+    Calculates the exposures for the given options data.
+
+    :param option_data: The options data.
+    :param ticker: The ticker symbol.
+    :param expir: The expiration date.
+    :param first_expiry: The first expiration date.
+    :param this_monthly_opex: The monthly options expiration date.
+    :param spot_price: The spot price.
+    :param today_ddt: The current date and time.
+    :param today_ddt_string: The current date and time as a string.
+    :return: A tuple containing the calculated exposures.
+    """
     dividend_yield = 0.0  # assume 0
     yield_10yr = check_ten_yr(today_ddt)
 
@@ -525,6 +565,14 @@ def calc_exposures(
 
 
 def get_options_data_json(ticker, expir, tz):
+    """
+    Gets the options data from a JSON file.
+
+    :param ticker: The ticker symbol.
+    :param expir: The expiration date.
+    :param tz: The timezone.
+    :return: The options data.
+    """
     try:
         # CBOE file format, json
         with open(
@@ -592,6 +640,14 @@ def get_options_data_json(ticker, expir, tz):
 
 
 def get_options_data_csv(ticker, expir, tz):
+    """
+    Gets the options data from a CSV file.
+
+    :param ticker: The ticker symbol.
+    :param expir: The expiration date.
+    :param tz: The timezone.
+    :return: The options data.
+    """
     try:
         # CBOE file format, csv
         with open(
@@ -719,6 +775,15 @@ def get_options_data_csv(ticker, expir, tz):
 
 
 def get_options_data(ticker, expir, is_json, tz):
+    """
+    Gets the options data for a given ticker, expiration, and format.
+
+    :param ticker: The ticker symbol.
+    :param expir: The expiration date.
+    :param is_json: Whether the data is in JSON format.
+    :param tz: The timezone.
+    :return: The options data.
+    """
     return (
         get_options_data_json(ticker, expir, tz)
         if is_json
