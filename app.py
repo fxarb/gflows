@@ -21,12 +21,13 @@ from os import environ
 
 load_dotenv()  # load environment variables from .env
 
+# The Dash application instance.
 app = Dash(
     __name__,
     external_stylesheets=[
-        dbc.themes.DARKLY,
-        dbc.themes.FLATLY,
-        dbc.icons.BOOTSTRAP,
+        dbc.themes.DARKLY,  # Dark theme for the app.
+        dbc.themes.FLATLY,  # Light theme for the app.
+        dbc.icons.BOOTSTRAP,  # Icons for the app.
     ],
     meta_tags=[
         {"name": "viewport", "content": "width=device-width, initial-scale=1"},
@@ -35,6 +36,7 @@ app = Dash(
     update_title=None,
 )
 
+# The cache for the app.
 cache = Cache(
     app.server,
     config={
@@ -46,12 +48,20 @@ cache = Cache(
 
 cache.clear()
 
+# The layout of the app.
 app.layout = serve_layout
+# The Flask server instance.
 server = app.server
 
 
 @cache.memoize(timeout=60 * 15)  # cache charts for 15 min
 def analyze_data(ticker, expir):
+    """
+    Analyzes the options data for a given ticker and expiration date.
+
+    :param ticker: The ticker symbol of the stock.
+    :param expir: The expiration date of the options.
+    """
     # Analyze stored data of specified ticker and expiry
     # defaults: json format, timezone 'America/New_York'
     result = get_options_data(
@@ -64,6 +74,12 @@ def analyze_data(ticker, expir):
 
 
 def cache_data(ticker, expir):
+    """
+    Caches the options data for a given ticker and expiration date.
+
+    :param ticker: The ticker symbol of the stock.
+    :param expir: The expiration date of the options.
+    """
     data = analyze_data(ticker, expir)
     if not cache.has(f"{ticker}_{expir}"):
         cache.set(  # for client/server sync
@@ -83,12 +99,20 @@ def cache_data(ticker, expir):
 
 
 def sensor(select=None):
+    """
+    Downloads the options data for the selected tickers.
+
+    :param select: A list of tickers to download data for. If None, downloads data for all tickers.
+    """
     # default: all tickers, json format
     dwn_data(select, is_json=True)  # False for CSV
     cache.clear()
 
 
 def check_for_retry():
+    """
+    Checks if there are any tickers that need to be redownloaded.
+    """
     tickers = cache.get("retry")
     if tickers:
         print("\nRedownloading data due to missing greek exposure...\n")
@@ -96,6 +120,7 @@ def check_for_retry():
 
 
 # respond to prompt if env variable not set
+# The response from the user to download recent data.
 response = environ.get("AUTO_RESPONSE")
 if not response:
     try:
@@ -108,6 +133,7 @@ else:
     print("\nUsing existing data...\n")
 
 # schedule when to redownload data
+# The scheduler for redownloading data.
 sched = BackgroundScheduler(daemon=True)
 sched.add_job(
     sensor,
@@ -175,6 +201,13 @@ app.clientside_callback(  # toggle light or dark theme
     State("exp-value", "data"),
 )
 def on_click(value, btn, expiration):
+    """
+    Handles the selection of an expiration date.
+
+    :param value: The value of the selected expiration date.
+    :param btn: The number of clicks on the all button.
+    :param expiration: The current expiration date.
+    """
     if not ctx.triggered_id and expiration:
         value = f"{expiration}-btn"
     if ctx.triggered_id == "all-btn" or value == "all-btn":
@@ -206,6 +239,17 @@ def on_click(value, btn, expiration):
     State("greek-value", "data"),
 )
 def on_click(btn1, btn2, btn3, btn4, active_page, value, greek):
+    """
+    Handles the selection of an option greek.
+
+    :param btn1: The number of clicks on the delta button.
+    :param btn2: The number of clicks on the gamma button.
+    :param btn3: The number of clicks on the vanna button.
+    :param btn4: The number of clicks on the charm button.
+    :param active_page: The active page of the pagination.
+    :param value: The value of the live dropdown.
+    :param greek: The current greek value.
+    """
     if not ctx.triggered_id and greek:
         is_active1, is_active2, is_active3, is_active4 = greek["is_active"]
         active_page, options, value = (
@@ -301,6 +345,14 @@ def on_click(btn1, btn2, btn3, btn4, active_page, value, greek):
     State("live-chart", "figure"),
 )
 def check_cache_key(n_intervals, stock, expiration, fig):
+    """
+    Checks if the data in the cache is up to date.
+
+    :param n_intervals: The number of intervals that have passed.
+    :param stock: The stock ticker.
+    :param expiration: The expiration date.
+    :param fig: The figure object.
+    """
     data = cache.get(f"{stock.lower()}_{expiration}")
     if not data and stock and expiration:
         cache_data(stock.lower(), expiration)
@@ -340,6 +392,17 @@ def check_cache_key(n_intervals, stock, expiration, fig):
     prevent_initial_call=True,
 )
 def handle_menu(btn1, btn2, stock, expiration, active_page, value, fig):
+    """
+    Handles the export menu.
+
+    :param btn1: The number of clicks on the chart data button.
+    :param btn2: The number of clicks on the significant points button.
+    :param stock: The stock ticker.
+    :param expiration: The expiration date.
+    :param active_page: The active page of the pagination.
+    :param value: The value of the live dropdown.
+    :param fig: The figure object.
+    """
     data = cache.get(f"{stock.lower()}_{expiration}")
     if not data or not data["today_ddt"] or not fig["data"]:
         raise PreventUpdate
@@ -462,6 +525,16 @@ def handle_menu(btn1, btn2, stock, expiration, active_page, value, fig):
     Input("switch", "value"),
 )
 def update_live_chart(value, stock, expiration, active_page, refresh, toggle_dark):
+    """
+    Updates the live chart based on user inputs.
+
+    :param value: The value of the live dropdown.
+    :param stock: The stock ticker.
+    :param expiration: The expiration date.
+    :param active_page: The active page of the pagination.
+    :param refresh: The refresh data.
+    :param toggle_dark: A boolean indicating whether to use the dark theme.
+    """
     (
         df,
         today_ddt,

@@ -5,12 +5,26 @@ from os import environ
 
 
 def format_ticker(ticker):
+    """
+    Formats a ticker symbol by removing the '^' prefix if it exists.
+
+    :param ticker: The ticker symbol to format.
+    :return: The formatted ticker symbol.
+    """
     return f"{ticker[1:]}" if ticker[0] == "^" else ticker
 
 
 def serve_layout():
+    """
+    Serves the layout of the application.
+
+    :return: The layout of the application.
+    """
+    # A list of tickers to display in the application.
     tickers_list = (environ.get("TICKERS") or "^SPX,^NDX,^RUT").strip().split(",")
+    # A Tickers object from the yfinance library.
     tickers = Tickers(tickers_list)
+    # A dictionary of ticker information.
     ticker_info = {ticker: tickers.tickers[ticker].info for ticker in tickers_list}
     return dbc.Container(
         [
