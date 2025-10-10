@@ -228,7 +228,7 @@ app.clientside_callback(  # toggle light or dark theme
     Input("all-btn", "n_clicks"),
     State("exp-value", "data"),
 )
-def on_click(value, btn, expiration):
+def on_click_expirations(value, btn, expiration):
     """
     Handles the selection of an expiration date.
 
@@ -268,7 +268,7 @@ def on_click(value, btn, expiration):
     Input("live-dropdown", "value"),
     State("greek-value", "data"),
 )
-def on_click(btn1, btn2, btn3, btn4, active_page, value, greek):
+def on_click_greeks(btn1, btn2, btn3, btn4, active_page, value, greek):
     """
     Handles the selection of an option greek.
 
