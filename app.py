@@ -68,7 +68,7 @@ def analyze_data(ticker, expir):
         ticker,
         expir,
         is_json=True,  # False for CSV
-        tz="America/New_York",
+        tz="Asia/Shanghai",
     )
     return result if result else (None,) * 16
 
@@ -87,12 +87,11 @@ def cache_data(ticker, expir):
             {
                 "ticker": ticker,
                 "expiration": expir,
-                "spot_price": data[4],
-                "monthly_options_dates": data[3],
+                "spot_price": data[3],
                 "today_ddt": data[1],
                 "today_ddt_string": data[2],
-                "zero_delta": data[12],
-                "zero_gamma": data[13],
+                "zero_delta": data[11],
+                "zero_gamma": data[12],
             },
         )
     return data
@@ -139,11 +138,20 @@ sched.add_job(
     sensor,
     combining.OrTrigger(
         [
-            cron.CronTrigger.from_crontab(
-                "0,15,30,45 9-15 * * 0-4", timezone=ZoneInfo("America/New_York")
+            cron.CronTrigger(
+                minute="30,45", hour="9", day_of_week="0-4", timezone=ZoneInfo("Asia/Shanghai")
             ),
-            cron.CronTrigger.from_crontab(
-                "0,15,30 16 * * 0-4", timezone=ZoneInfo("America/New_York")
+            cron.CronTrigger(
+                minute="*/15", hour="10", day_of_week="0-4", timezone=ZoneInfo("Asia/Shanghai")
+            ),
+            cron.CronTrigger(
+                minute="0,15,30", hour="11", day_of_week="0-4", timezone=ZoneInfo("Asia/Shanghai")
+            ),
+            cron.CronTrigger(
+                minute="*/15", hour="13-14", day_of_week="0-4", timezone=ZoneInfo("Asia/Shanghai")
+            ),
+            cron.CronTrigger(
+                minute="0", hour="15", day_of_week="0-4", timezone=ZoneInfo("Asia/Shanghai")
             ),
         ]
     ),
@@ -154,16 +162,36 @@ sched.add_job(
         [
             cron.CronTrigger(
                 day_of_week="0-4",
-                hour="9-15",
+                hour="9",
+                minute="30-59",
                 second="*/5",
-                timezone=ZoneInfo("America/New_York"),
+                timezone=ZoneInfo("Asia/Shanghai"),
             ),
             cron.CronTrigger(
                 day_of_week="0-4",
-                hour="16",
+                hour="10",
+                second="*/5",
+                timezone=ZoneInfo("Asia/Shanghai"),
+            ),
+            cron.CronTrigger(
+                day_of_week="0-4",
+                hour="11",
                 minute="0-30",
                 second="*/5",
-                timezone=ZoneInfo("America/New_York"),
+                timezone=ZoneInfo("Asia/Shanghai"),
+            ),
+            cron.CronTrigger(
+                day_of_week="0-4",
+                hour="13-14",
+                second="*/5",
+                timezone=ZoneInfo("Asia/Shanghai"),
+            ),
+            cron.CronTrigger(
+                day_of_week="0-4",
+                hour="15",
+                minute="0",
+                second="*/5",
+                timezone=ZoneInfo("Asia/Shanghai"),
             ),
         ]  # during the specified times, check every 5 seconds for a retry condition
     ),
@@ -192,15 +220,15 @@ app.clientside_callback(  # toggle light or dark theme
 )
 
 
-@app.callback(  # handle selected expiration
+@app.callback(
     Output("exp-value", "data"),
     Output("all-btn", "active"),
-    Output("monthly-options", "value"),
-    Input("monthly-options", "value"),
+    Output("exp-dropdown", "value"),
+    Input("exp-dropdown", "value"),
     Input("all-btn", "n_clicks"),
     State("exp-value", "data"),
 )
-def on_click(value, btn, expiration):
+def on_click_expirations(value, btn, expiration):
     """
     Handles the selection of an expiration date.
 
@@ -209,16 +237,18 @@ def on_click(value, btn, expiration):
     :param expiration: The current expiration date.
     """
     if not ctx.triggered_id and expiration:
-        value = f"{expiration}-btn"
+        value = f"{expiration}-btn" if expiration != "all" else "all-btn"
+
     if ctx.triggered_id == "all-btn" or value == "all-btn":
         return "all", True, None
     else:
         button_map = {
-            "monthly-btn": ("monthly", False, "monthly-btn"),
-            "opex-btn": ("opex", False, "opex-btn"),
-            "0dte-btn": ("0dte", False, "0dte-btn"),
+            "this-month-btn": ("this-month", False, "this-month-btn"),
+            "next-month-btn": ("next-month", False, "next-month-btn"),
+            "this-season-btn": ("this-season", False, "this-season-btn"),
+            "next-season-btn": ("next-season", False, "next-season-btn"),
         }
-        return button_map.get(value, ("monthly", False, "monthly-btn"))
+        return button_map.get(value, ("next-month", False, "next-month-btn"))
 
 
 @app.callback(  # handle selected option greek
@@ -238,7 +268,7 @@ def on_click(value, btn, expiration):
     Input("live-dropdown", "value"),
     State("greek-value", "data"),
 )
-def on_click(btn1, btn2, btn3, btn4, active_page, value, greek):
+def on_click_greeks(btn1, btn2, btn3, btn4, active_page, value, greek):
     """
     Handles the selection of an option greek.
 
@@ -413,12 +443,7 @@ def handle_menu(btn1, btn2, stock, expiration, active_page, value, fig):
         raise PreventUpdate
 
     if expiration != "all":
-        date_formats = {
-            "monthly": data["monthly_options_dates"][0].strftime("%Y-%b"),
-            "opex": data["monthly_options_dates"][1].strftime("%Y-%b-%d"),
-            "0dte": data["monthly_options_dates"][0].strftime("%Y-%b-%d"),
-        }
-        exp_date = date_formats[expiration]
+        exp_date = expiration.replace("-", "_")
     else:
         exp_date = "All_Expirations"
 
@@ -516,7 +541,6 @@ def handle_menu(btn1, btn2, stock, expiration, active_page, value, fig):
     Output("live-chart", "figure"),
     Output("live-chart", "style"),
     Output("pagination-div", "hidden"),
-    Output("monthly-options", "options"),
     Input("live-dropdown", "value"),
     Input("tabs", "active_tab"),
     Input("exp-value", "data"),
@@ -539,7 +563,6 @@ def update_live_chart(value, stock, expiration, active_page, refresh, toggle_dar
         df,
         today_ddt,
         today_ddt_string,
-        monthly_options_dates,
         spot_price,
         from_strike,
         to_strike,
@@ -590,29 +613,17 @@ def update_live_chart(value, stock, expiration, active_page, refresh, toggle_dar
     pio.templates["custom_template"].update(layout=layout)
     pio.templates.default = "custom_template"
 
-    if df is None:
+    if df.empty:
         return (
             go.Figure(layout={"title_text": f"{stock} data unavailable, retry later"}),
             {},
             True,
-            no_update,
         )
 
     retry_cache = cache.get("retry")
     if (
         df["total_delta"].sum() == 0
         and (not retry_cache or stock not in retry_cache)
-        and (
-            expiration not in ["0dte", "opex"]
-            or (
-                expiration == "0dte"
-                and today_ddt < monthly_options_dates[0] + timedelta(minutes=15)
-            )
-            or (
-                expiration == "opex"
-                and today_ddt < monthly_options_dates[1] + timedelta(minutes=15)
-            )
-        )
     ):
         # if data hasn't expired and total delta exposure is 0,
         # set a 'retry' for the scheduler to catch
@@ -630,33 +641,14 @@ def update_live_chart(value, stock, expiration, active_page, refresh, toggle_dar
         # df_agg = df_agg[: today_ddt + timedelta(weeks=52)] # filter for relevance
         call_ivs, put_ivs = call_ivs["exp"], put_ivs["exp"]
 
-    date_formats = {
-        "monthly": monthly_options_dates[0].strftime("%Y %b"),
-        "opex": monthly_options_dates[1].strftime("%Y %b %d"),
-        "0dte": monthly_options_dates[0].strftime("%Y %b %d"),
+    legend_title_map = {
+        "this-month": "This Month",
+        "next-month": "Next Month",
+        "this-season": "This Season",
+        "next-season": "Next Season",
     }
-    monthly_options = [  # provide monthly option labels
-        {
-            "label": monthly_options_dates[0].strftime("%Y %B"),
-            "value": "monthly-btn",
-        },
-        {
-            "label": html.Div(
-                children=[
-                    monthly_options_dates[1].strftime("%Y %B %d"),
-                    html.Span("*", className="align-super"),
-                ],
-                className="d-flex align-items-center",
-            ),
-            "value": "opex-btn",
-        },
-        {
-            "label": monthly_options_dates[0].strftime("%Y %B %d"),
-            "value": "0dte-btn",
-        },
-    ]
     legend_title = (
-        date_formats[expiration] if expiration != "all" else "All Expirations"
+        legend_title_map.get(expiration) if expiration != "all" else "All Expirations"
     )
 
     strikes = df_agg.index.to_numpy()
@@ -758,58 +750,28 @@ def update_live_chart(value, stock, expiration, active_page, refresh, toggle_dar
                 f"{stock} {name} Exposure Profile, {today_ddt_string}", width=50
             )
             name_to_vals = {
-                "Delta": (
-                    totaldelta["all"],
-                    totaldelta["ex_next"],
-                    totaldelta["ex_fri"],
-                ),
-                "Gamma": (
-                    totalgamma["all"],
-                    totalgamma["ex_next"],
-                    totalgamma["ex_fri"],
-                ),
-                "Vanna": (
-                    totalvanna["all"],
-                    totalvanna["ex_next"],
-                    totalvanna["ex_fri"],
-                ),
-                "Charm": (
-                    totalcharm["all"],
-                    totalcharm["ex_next"],
-                    totalcharm["ex_fri"],
-                ),
+                "Delta": totaldelta["all"],
+                "Gamma": totalgamma["all"],
+                "Vanna": totalvanna["all"],
+                "Charm": totalcharm["all"],
             }
-            all_ex, ex_next, ex_fri = name_to_vals[name]
+            all_ex = name_to_vals[name]
             fig.add_trace(go.Scatter(x=levels, y=all_ex, name="All Expiries"))
-            fig.add_trace(go.Scatter(x=levels, y=ex_fri, name="Next Monthly Expiry"))
-            fig.add_trace(go.Scatter(x=levels, y=ex_next, name="Next Expiry"))
             # show - &/or + areas of exposure depending on condition
             if name == "Charm" or name == "Vanna":
                 all_ex_min, all_ex_max = all_ex.min(), all_ex.max()
-                min_n = [
-                    all_ex_min,
-                    ex_fri.min() if ex_fri.size != 0 else all_ex_min,
-                    ex_next.min() if ex_next.size != 0 else all_ex_min,
-                ]
-                max_n = [
-                    all_ex_max,
-                    ex_fri.max() if ex_fri.size != 0 else all_ex_max,
-                    ex_next.max() if ex_next.size != 0 else all_ex_max,
-                ]
-                min_n.sort()
-                max_n.sort()
-                if min_n[0] < 0:
+                if all_ex_min < 0:
                     fig.add_hrect(
                         y0=0,
-                        y1=min_n[0] * 1.5,
+                        y1=all_ex_min * 1.5,
                         fillcolor="red",
                         opacity=0.1,
                         line_width=0,
                     )
-                if max_n[2] > 0:
+                if all_ex_max > 0:
                     fig.add_hrect(
                         y0=0,
-                        y1=max_n[2] * 1.5,
+                        y1=all_ex_max * 1.5,
                         fillcolor="green",
                         opacity=0.1,
                         line_width=0,
@@ -936,7 +898,7 @@ def update_live_chart(value, stock, expiration, active_page, refresh, toggle_dar
 
     is_pagination_hidden = "Profile" in value
 
-    return fig, {}, is_pagination_hidden, monthly_options
+    return fig, {}, is_pagination_hidden
 
 
 if __name__ == "__main__":

@@ -1,6 +1,5 @@
 from dash import html, dcc
 import dash_bootstrap_components as dbc
-from yfinance import Tickers
 from os import environ
 
 
@@ -21,11 +20,7 @@ def serve_layout():
     :return: The layout of the application.
     """
     # A list of tickers to display in the application.
-    tickers_list = (environ.get("TICKERS") or "^SPX,^NDX,^RUT").strip().split(",")
-    # A Tickers object from the yfinance library.
-    tickers = Tickers(tickers_list)
-    # A dictionary of ticker information.
-    ticker_info = {ticker: tickers.tickers[ticker].info for ticker in tickers_list}
+    tickers_list = (environ.get("TICKERS") or "588000,588080").strip().split(",")
     return dbc.Container(
         [
             dcc.Store(
@@ -92,11 +87,7 @@ def serve_layout():
                     id="tabs",
                     children=[
                         dbc.Tab(
-                            label=(
-                                f"{ticker_info[ticker]['longName']} ({format_ticker(ticker)})"
-                                if isinstance(ticker_info[ticker], dict)
-                                else format_ticker(ticker)
-                            ),
+                            label=format_ticker(ticker),
                             tab_id=format_ticker(ticker),
                             active_label_class_name="fw-bold",
                         )
@@ -114,37 +105,20 @@ def serve_layout():
                             html.Div(html.H4("Expirations"), className="mx-auto"),
                             dbc.ButtonGroup(
                                 children=[
-                                    html.Div(
-                                        dcc.Dropdown(
-                                            options=[
-                                                {
-                                                    "label": html.Div(
-                                                        className="line-1-horizontal"
-                                                    ),
-                                                    "value": "monthly-btn",
-                                                },
-                                                {
-                                                    "label": html.Div(
-                                                        className="line-1-horizontal"
-                                                    ),
-                                                    "value": "opex-btn",
-                                                },
-                                                {
-                                                    "label": html.Div(
-                                                        className="line-1-horizontal"
-                                                    ),
-                                                    "value": "0dte-btn",
-                                                },
-                                            ],
-                                            id="monthly-options",
-                                            placeholder="Monthly",
-                                            searchable=False,
-                                            clearable=False,
-                                            className="d-flex h-100 border border-primary btn-outline-primary align-items-center",
-                                            persistence=True,
-                                            persistence_type="local",
-                                        ),
-                                        className="w-50",
+                                    dcc.Dropdown(
+                                        options=[
+                                            {"label": "This Month", "value": "this-month-btn"},
+                                            {"label": "Next Month", "value": "next-month-btn"},
+                                            {"label": "This Season", "value": "this-season-btn"},
+                                            {"label": "Next Season", "value": "next-season-btn"},
+                                        ],
+                                        id="exp-dropdown",
+                                        placeholder="Expirations",
+                                        searchable=False,
+                                        clearable=False,
+                                        className="d-flex h-100 border border-primary btn-outline-primary align-items-center",
+                                        persistence=True,
+                                        persistence_type="local",
                                     ),
                                     dbc.Button(
                                         "All",

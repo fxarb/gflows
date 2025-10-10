@@ -11,6 +11,18 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
+  app:
+    build:
+      context: .
+      dockerfile: AppDockerfile
+    image: gflows-app:latest
+    volumes:
+      - ./:/app
+    environment:
+      - AUTO_RESPONSE=y
+      # - RISK_FREE_RATE_URL=http://example.com/risk_free_rate.json # Uncomment and set your URL
+      # - TICKERS=588000,588080 # Uncomment to override default tickers
+
   server:
     image: ghcr.io/static-web-server/static-web-server:latest
     volumes:
