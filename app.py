@@ -18,7 +18,9 @@ from datetime import timedelta
 from zoneinfo import ZoneInfo
 from dotenv import load_dotenv
 from os import environ
+from modules.logging_config import setup_logging
 
+logger = setup_logging()
 load_dotenv()  # load environment variables from .env
 
 # The Dash application instance.
@@ -114,22 +116,24 @@ def check_for_retry():
     """
     tickers = cache.get("retry")
     if tickers:
-        print("\nRedownloading data due to missing greek exposure...\n")
+        logger.info("Redownloading data due to missing greek exposure...")
         sensor(select=tickers)
 
 
 # respond to prompt if env variable not set
 # The response from the user to download recent data.
 response = environ.get("AUTO_RESPONSE")
+logger.debug(f"AUTO_RESPONSE environment variable set to: {response}")
 if not response:
     try:
         response = input("\nDownload recent data? (y/n): ")
     except EOFError:
         response = "n"
 if response.strip().lower() == "y":  # download data at start
+    logger.info("Downloading initial data...")
     sensor()
 else:
-    print("\nUsing existing data...\n")
+    logger.info("Using existing data...")
 
 # schedule when to redownload data
 # The scheduler for redownloading data.
