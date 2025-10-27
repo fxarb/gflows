@@ -2,6 +2,9 @@ import numpy as np
 import ctypes
 from math import tau
 from numba import vectorize, njit
+from .logging_config import setup_logging
+
+logger = setup_logging()
 from numba.types import float64, UniTuple, string
 from numba.extending import get_cython_function_address
 

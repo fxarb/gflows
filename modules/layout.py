@@ -1,6 +1,9 @@
 from dash import html, dcc
 import dash_bootstrap_components as dbc
 from os import environ
+from .logging_config import setup_logging
+
+logger = setup_logging()
 
 
 def format_ticker(ticker):
@@ -10,7 +13,10 @@ def format_ticker(ticker):
     :param ticker: The ticker symbol to format.
     :return: The formatted ticker symbol.
     """
-    return f"{ticker[1:]}" if ticker[0] == "^" else ticker
+    logger.debug(f"Formatting ticker: {ticker}")
+    formatted_ticker = f"{ticker[1:]}" if ticker[0] == "^" else ticker
+    logger.debug(f"Formatted ticker: {formatted_ticker}")
+    return formatted_ticker
 
 
 def serve_layout():
@@ -19,8 +25,10 @@ def serve_layout():
 
     :return: The layout of the application.
     """
+    logger.debug("Serving layout.")
     # A list of tickers to display in the application.
     tickers_list = (environ.get("TICKERS") or "588000,588080").strip().split(",")
+    logger.debug(f"Tickers list: {tickers_list}")
     return dbc.Container(
         [
             dcc.Store(
