@@ -62,10 +62,13 @@ def is_parsable(date):
     :param date: The string to check.
     :return: True if the string can be parsed as a date, False otherwise.
     """
+    logger.debug(f"is_parsable called with date: {date}")
     try:
         datetime.strptime(date.split()[-2], "%H:%M")
+        logger.debug("Date is parsable.")
         return True
     except ValueError:
+        logger.debug("Date is not parsable.")
         return False
 
 
@@ -78,6 +81,7 @@ def format_data(data, today_ddt, tzinfo):
     :param tzinfo: The timezone info.
     :return: The formatted options data.
     """
+    logger.debug("Formatting data...")
     keys_to_keep = ["option", "iv", "open_interest", "delta", "gamma"]
     data = pd.DataFrame([{k: d[k] for k in keys_to_keep if k in d} for d in data])
 
@@ -153,6 +157,7 @@ def format_data(data, today_ddt, tzinfo):
         drop=True
     )
 
+    logger.debug("Data formatting complete.")
     return data
 
 
@@ -175,7 +180,9 @@ def calc_exposures(
     :param today_ddt_string: The current date and time as a string.
     :return: A tuple containing the calculated exposures.
     """
+    logger.debug(f"Calculating exposures for ticker: {ticker}, expiration: {expir}")
     if option_data.empty:
+        logger.warning("Option data is empty, returning empty result.")
         # Return a tuple of Nones with the expected length
         return (pd.DataFrame(), None, None, None, None, None, None, None, {}, {}, {}, {}, None, None, {}, {})
     dividend_yield = 0.0  # assume 0
@@ -536,6 +543,7 @@ def get_options_data_json(ticker, expir, tz):
     :param tz: The timezone.
     :return: The options data.
     """
+    logger.debug(f"Getting options data from JSON for ticker: {ticker}, expiration: {expir}")
     try:
         # CBOE file format, json
         with open(
@@ -635,6 +643,7 @@ def get_options_data_csv(ticker, expir, tz):
     :param tz: The timezone.
     :return: The options data.
     """
+    logger.debug(f"Getting options data from CSV for ticker: {ticker}, expiration: {expir}")
     try:
         # CBOE file format, csv
         with open(
