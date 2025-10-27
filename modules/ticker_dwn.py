@@ -68,13 +68,9 @@ def dwn_data(select, is_json):
     pool = ThreadPool()
     print(f"\ndownload start: {datetime.now()}\n")
     # A list of tickers to download data for.
-    tickers_pool = (environ.get("TICKERS") or "^SPX,^NDX,^RUT").strip().split(",")
+    tickers_format = (environ.get("TICKERS") or "159901,159915,159919,159922,510050,510300,510500,588000,588080").strip().split(",")
     if select:  # select tickers to download
-        tickers_pool = [f"^{t}" if f"^{t}" in tickers_pool else t for t in select]
-    # A list of formatted tickers.
-    tickers_format = [
-        f"_{ticker[1:]}" if ticker[0] == "^" else ticker for ticker in tickers_pool
-    ]
+        tickers_format = select
     # A requests session object.
     session = requests.Session()
     session.headers.update({"Accept": "application/json" if is_json else "text/csv"})
