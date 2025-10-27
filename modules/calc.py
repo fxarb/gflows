@@ -501,12 +501,12 @@ def calc_exposures(
         zerodelta = zerodelta[0][0]
     else:
         zerodelta = 0
-        print("delta flip not found for", ticker, expir)
+        logger.warning(f"Delta flip not found for {ticker} {expir}")
     if zerogamma.size > 0:
         zerogamma = zerogamma[0][0]
     else:
         zerogamma = 0
-        print("gamma flip not found for", ticker, expir)
+        logger.warning(f"Gamma flip not found for {ticker} {expir}")
 
     return (
         option_data,
@@ -544,7 +544,7 @@ def get_options_data_json(ticker, expir, tz):
             json_data = json_file.read()
         data = pd.json_normalize(orjson.loads(json_data))
     except orjson.JSONDecodeError as e:  # handle error if data unavailable
-        print(f"{e}, {ticker} {expir} data is unavailable")
+        logger.error(f"{e}, {ticker} {expir} data is unavailable")
         return
 
     # Get Spot
@@ -576,7 +576,7 @@ def get_options_data_json(ticker, expir, tz):
             option_data = option_data[option_data["expiration_date"] != first_expiry]
             first_expiry = all_dates.iat[1]
         except IndexError:
-            print("next date unavailable. using expired date")
+            logger.warning("Next date unavailable. Using expired date.")
 
     tzinfo = today_date.date_obj.tzinfo
     year = today_ddt.year
