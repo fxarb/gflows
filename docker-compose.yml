@@ -1,5 +1,5 @@
 services:
-  job:
+  gflow-job:
     build:
       context: .
       dockerfile: ConverterDockerfile
@@ -12,7 +12,7 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
-  app:
+  gflow-app:
     build:
       context: .
       dockerfile: AppDockerfile
@@ -25,7 +25,7 @@ services:
       # - RISK_FREE_RATE_URL=http://example.com/risk_free_rate.json # Uncomment and set your URL
       # - TICKERS=588000,588080 # Uncomment to override default tickers
 
-  server:
+  gflow-server:
     image: ghcr.io/static-web-server/static-web-server:latest
     volumes:
       - ./:/public
