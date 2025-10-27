@@ -17,10 +17,7 @@ def fulfill_req(ticker, is_json, session):
     :param session: A requests session object.
     """
     # The URL of the API to download the data from.
-    api_url = (
-        environ.get("API_URL")
-        or f"https://cdn.cboe.com/api/global/delayed_quotes/options/{ticker.upper()}.json"
-    ).strip()
+    api_url = environ.get("API_URL", 'https://cdn.cboe.com/api/global/delayed_quotes/options/{0}.json').format(ticker.upper()).strip()
     ticker = ticker.lower() if ticker[0] != "_" else ticker[1:].lower()
     # The format of the data to download.
     d_format = "json" if is_json else "csv"
