@@ -6,7 +6,9 @@ from datetime import datetime
 from os import environ, getcwd
 from pathlib import Path
 from functools import partial
+from .logging_config import setup_logging
 
+logger = setup_logging()
 
 def fulfill_req(ticker, is_json, session):
     """
@@ -18,6 +20,7 @@ def fulfill_req(ticker, is_json, session):
     """
     # The URL of the API to download the data from.
     api_url = environ.get("API_URL", 'https://cdn.cboe.com/api/global/delayed_quotes/options/{0}.json').format(ticker.upper()).strip()
+    logger.debug(f"API URL for {ticker}: {api_url}")
     ticker = ticker.lower() if ticker[0] != "_" else ticker[1:].lower()
     # The format of the data to download.
     d_format = "json" if is_json else "csv"
@@ -28,19 +31,17 @@ def fulfill_req(ticker, is_json, session):
         else Path(f"{getcwd()}/data/csv/{ticker}_quotedata.csv")
     )
     with open(filename, "wb") as f, session.get(api_url) as r:
-        for _ in range(3):  # in case of unavailable data, retry twice
+        for i in range(3):  # in case of unavailable data, retry twice
             try:  # check if data is available
                 r.raise_for_status()
             except requests.exceptions.HTTPError as e:
-                print(e)
+                logger.error(f"HTTPError for {ticker}: {e}")
                 f.write("Unavailable".encode("utf-8"))
                 if r.status_code == 504:  # check if timeout occurred
-                    print("gateway timeout, retrying search for", ticker, d_format)
+                    logger.warning(f"Gateway timeout for {ticker}, retry {i+1}/3")
                     continue
                 elif r.status_code == 500:  # internal server error
-                    print(
-                        "internal server error, retrying search for", ticker, d_format
-                    )
+                    logger.warning(f"Internal server error for {ticker}, retry {i+1}/3")
                     continue
             else:
                 if is_json:
@@ -53,7 +54,7 @@ def fulfill_req(ticker, is_json, session):
                             # add padding:
                             line += b"==="
                         f.write(base64.b64decode(line) + "\n".encode("utf-8"))
-                print("\nrequest done for", ticker, d_format)
+                logger.info(f"Request done for {ticker} in {d_format} format")
                 break
 
 
@@ -66,11 +67,12 @@ def dwn_data(select, is_json):
     """
     # A thread pool to download the data in parallel.
     pool = ThreadPool()
-    print(f"\ndownload start: {datetime.now()}\n")
+    logger.info(f"Download start: {datetime.now()}")
     # A list of tickers to download data for.
     tickers_format = (environ.get("TICKERS") or "159901,159915,159919,159922,510050,510300,510500,588000,588080").strip().split(",")
     if select:  # select tickers to download
         tickers_format = select
+    logger.debug(f"Tickers to download: {tickers_format}")
     # A requests session object.
     session = requests.Session()
     session.headers.update({"Accept": "application/json" if is_json else "text/csv"})
@@ -79,7 +81,7 @@ def dwn_data(select, is_json):
     pool.map(fulfill_req_with_args, tickers_format)
     pool.close()
     pool.join()
-    print(f"\n\ndownload end: {datetime.now()}\n")
+    logger.info(f"Download end: {datetime.now()}")
 
 
 if __name__ == "__main__":
