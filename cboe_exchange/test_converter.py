@@ -19,7 +19,7 @@ class TestConverter(unittest.TestCase):
             if ".SH" in key or ".SZ" in key:
                 stock_count += 1
 
-        parsed_data = convert_szosho_to_cboe(file_path)
+        parsed_data = convert_szosho_to_cboe(raw_data)
 
         self.assertIsInstance(parsed_data, list)
         self.assertEqual(len(parsed_data), stock_count)
