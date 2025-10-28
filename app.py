@@ -21,6 +21,8 @@ from os import environ
 from modules.logging_config import setup_logging
 
 logger = setup_logging()
+import logging
+logging.getLogger('apscheduler').setLevel(logging.WARNING)
 load_dotenv()  # load environment variables from .env
 
 # The Dash application instance.
