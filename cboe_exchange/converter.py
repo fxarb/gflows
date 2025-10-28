@@ -33,6 +33,14 @@ def _generate_stock_code(stock_symbol):
     stock_code = stock_symbol.split('.')[0]
     return ''.join([chr(ord('A') + int(c)) for c in stock_code])
 
+def _format_timestamp(timetag):
+    """Formats a timetag string into a standard timestamp format."""
+    try:
+        dt_obj = datetime.strptime(timetag, "%Y%m%d %H:%M:%S")
+        return dt_obj.strftime("%Y-%m-%d %H:%M:%S")
+    except (ValueError, TypeError):
+        return ""
+
 def convert_szosho_to_cboe(szosho_data: dict) -> List[dict]:
     """
     Parses a JSON file with stock and option data, calculates financial metrics,
@@ -73,7 +81,7 @@ def convert_szosho_to_cboe(szosho_data: dict) -> List[dict]:
             options=[]
         )
         cboe_data_map[stock_symbol] = CBOEData(
-            timestamp=stock_data.get("timetag", ""),
+            timestamp=_format_timestamp(stock_data.get("timetag", "")),
             symbol=stock_symbol,
             data=stock_obj
         )
