@@ -255,6 +255,7 @@ def calc_exposures(
         )[0],
         0,
     )
+    logger.debug(f"np_spot_price: {np_spot_price}, opt_put_ivs: {opt_put_ivs}, time_till_exp: {time_till_exp}, dividend_yield: {dividend_yield}, put_open_interest: {put_open_interest}, put_dp: {put_dp}, put_pdf_dp: {put_pdf_dp}")
     option_data["put_vex"] = np.where(
         nonzero_put_cond,
         stats.calc_vanna_ex(

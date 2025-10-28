@@ -170,9 +170,7 @@ sched.add_job(
         ]
     ),
 )
-
 from apscheduler.triggers.interval import IntervalTrigger
-
 sched.add_job(
     check_for_retry,
     trigger=IntervalTrigger(seconds=10),
