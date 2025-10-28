@@ -113,6 +113,7 @@ def serve_layout():
                             html.Div(html.H4("Expirations"), className="mx-auto"),
                             dbc.ButtonGroup(
                                 children=[
+                                    html.Div(
                                     dcc.Dropdown(
                                         options=[
                                             {"label": "This Month", "value": "this-month-btn"},
@@ -127,6 +128,8 @@ def serve_layout():
                                         className="d-flex h-100 border border-primary btn-outline-primary align-items-center",
                                         persistence=True,
                                         persistence_type="local",
+                                    ),
+                                        className="w-50",
                                     ),
                                     dbc.Button(
                                         "All",
