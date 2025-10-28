@@ -15,4 +15,4 @@ COPY . .
 EXPOSE 8050
 
 # Set the command to run the app
-CMD ["gunicorn", "--workers", "4", "--bind", "0.0.0.0:8050", "app:server"]
+CMD ["gunicorn", "--workers", "1", "--bind", "0.0.0.0:8050", "app:server"]
