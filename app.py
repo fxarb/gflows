@@ -170,45 +170,14 @@ sched.add_job(
         ]
     ),
 )
+
+from apscheduler.triggers.interval import IntervalTrigger
+
 sched.add_job(
     check_for_retry,
-    combining.OrTrigger(
-        [
-            cron.CronTrigger(
-                day_of_week="0-4",
-                hour="9",
-                minute="30-59",
-                second="*/5",
-                timezone=ZoneInfo("Asia/Shanghai"),
-            ),
-            cron.CronTrigger(
-                day_of_week="0-4",
-                hour="10",
-                second="*/5",
-                timezone=ZoneInfo("Asia/Shanghai"),
-            ),
-            cron.CronTrigger(
-                day_of_week="0-4",
-                hour="11",
-                minute="0-30",
-                second="*/5",
-                timezone=ZoneInfo("Asia/Shanghai"),
-            ),
-            cron.CronTrigger(
-                day_of_week="0-4",
-                hour="13-14",
-                second="*/5",
-                timezone=ZoneInfo("Asia/Shanghai"),
-            ),
-            cron.CronTrigger(
-                day_of_week="0-4",
-                hour="15",
-                minute="0",
-                second="*/5",
-                timezone=ZoneInfo("Asia/Shanghai"),
-            ),
-        ]  # during the specified times, check every 5 seconds for a retry condition
-    ),
+    trigger=IntervalTrigger(seconds=10),
+    id="check_for_retry_job",
+    replace_existing=True
 )
 sched.start()
 
