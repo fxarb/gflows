@@ -193,8 +193,8 @@ def calc_exposures(
     time_till_exp = option_data["time_till_exp"].to_numpy()
     opt_call_ivs = option_data["call_iv"].to_numpy()
     opt_put_ivs = option_data["put_iv"].to_numpy()
-    call_open_interest = option_data["call_open_int"].to_numpy()
-    put_open_interest = option_data["put_open_int"].to_numpy()
+    call_open_interest = option_data["call_open_int"].to_numpy().astype(np.float64)
+    put_open_interest = option_data["put_open_int"].to_numpy().astype(np.float64)
 
     nonzero_call_cond = (time_till_exp > 0) & (opt_call_ivs > 0)
     nonzero_put_cond = (time_till_exp > 0) & (opt_put_ivs > 0)
