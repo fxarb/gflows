@@ -193,8 +193,10 @@ def calc_exposures(
     time_till_exp = option_data["time_till_exp"].to_numpy()
     opt_call_ivs = option_data["call_iv"].to_numpy()
     opt_put_ivs = option_data["put_iv"].to_numpy()
-    call_open_interest = option_data["call_open_int"].to_numpy()
-    put_open_interest = option_data["put_open_int"].to_numpy()
+    call_open_interest = option_data["call_open_int"].to_numpy().astype(np.float64)
+    put_open_interest = option_data["put_open_int"].to_numpy().astype(np.float64)
+    logger.debug(f"call_open_interest dtype: {call_open_interest.dtype}")
+    logger.debug(f"put_open_interest dtype: {put_open_interest.dtype}")
 
     nonzero_call_cond = (time_till_exp > 0) & (opt_call_ivs > 0)
     nonzero_put_cond = (time_till_exp > 0) & (opt_put_ivs > 0)
@@ -253,6 +255,7 @@ def calc_exposures(
         )[0],
         0,
     )
+    logger.debug(f"np_spot_price: {np_spot_price}, opt_put_ivs: {opt_put_ivs}, time_till_exp: {time_till_exp}, dividend_yield: {dividend_yield}, put_open_interest: {put_open_interest}, put_dp: {put_dp}, put_pdf_dp: {put_pdf_dp}")
     option_data["put_vex"] = np.where(
         nonzero_put_cond,
         stats.calc_vanna_ex(
