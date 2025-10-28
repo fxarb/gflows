@@ -14,6 +14,9 @@ from cachetools import cached, TTLCache
 from pathlib import Path
 from os import getcwd
 from re import compile
+from .logging_config import setup_logging
+
+logger = setup_logging()
 
 # Ignore warning for NaN values in dataframe
 simplefilter(action="ignore", category=RuntimeWarning)
@@ -35,17 +38,20 @@ def get_risk_free_rate():
     """
     url = environ.get("RISK_FREE_RATE_URL")
     if not url:
-        print("RISK_FREE_RATE_URL not set, using default value of 0.02")
+        logger.warning("RISK_FREE_RATE_URL not set, using default value of 0.02")
         return 0.02
 
     try:
+        logger.debug(f"Fetching risk-free rate from {url}")
         response = requests.get(url, timeout=5)
         response.raise_for_status()
         data = response.json()
-        return float(data.get("RiskFreeRate", 0.02))
+        risk_free_rate = float(data.get("RiskFreeRate", 0.02))
+        logger.info(f"Successfully fetched risk-free rate: {risk_free_rate}")
+        return risk_free_rate
     except (requests.exceptions.RequestException, ValueError) as e:
-        print(f"Failed to fetch risk-free rate from {url}: {e}")
-        print("Using default value of 0.02")
+        logger.error(f"Failed to fetch risk-free rate from {url}: {e}")
+        logger.warning("Using default value of 0.02")
         return 0.02
 
 
@@ -56,10 +62,13 @@ def is_parsable(date):
     :param date: The string to check.
     :return: True if the string can be parsed as a date, False otherwise.
     """
+    logger.debug(f"is_parsable called with date: {date}")
     try:
         datetime.strptime(date.split()[-2], "%H:%M")
+        logger.debug("Date is parsable.")
         return True
     except ValueError:
+        logger.debug("Date is not parsable.")
         return False
 
 
@@ -72,6 +81,7 @@ def format_data(data, today_ddt, tzinfo):
     :param tzinfo: The timezone info.
     :return: The formatted options data.
     """
+    logger.debug("Formatting data...")
     keys_to_keep = ["option", "iv", "open_interest", "delta", "gamma"]
     data = pd.DataFrame([{k: d[k] for k in keys_to_keep if k in d} for d in data])
 
@@ -147,6 +157,7 @@ def format_data(data, today_ddt, tzinfo):
         drop=True
     )
 
+    logger.debug("Data formatting complete.")
     return data
 
 
@@ -169,7 +180,9 @@ def calc_exposures(
     :param today_ddt_string: The current date and time as a string.
     :return: A tuple containing the calculated exposures.
     """
+    logger.debug(f"Calculating exposures for ticker: {ticker}, expiration: {expir}")
     if option_data.empty:
+        logger.warning("Option data is empty, returning empty result.")
         # Return a tuple of Nones with the expected length
         return (pd.DataFrame(), None, None, None, None, None, None, None, {}, {}, {}, {}, None, None, {}, {})
     dividend_yield = 0.0  # assume 0
@@ -180,8 +193,10 @@ def calc_exposures(
     time_till_exp = option_data["time_till_exp"].to_numpy()
     opt_call_ivs = option_data["call_iv"].to_numpy()
     opt_put_ivs = option_data["put_iv"].to_numpy()
-    call_open_interest = option_data["call_open_int"].to_numpy()
-    put_open_interest = option_data["put_open_int"].to_numpy()
+    call_open_interest = option_data["call_open_int"].to_numpy().astype(np.float64)
+    put_open_interest = option_data["put_open_int"].to_numpy().astype(np.float64)
+    logger.debug(f"call_open_interest dtype: {call_open_interest.dtype}")
+    logger.debug(f"put_open_interest dtype: {put_open_interest.dtype}")
 
     nonzero_call_cond = (time_till_exp > 0) & (opt_call_ivs > 0)
     nonzero_put_cond = (time_till_exp > 0) & (opt_put_ivs > 0)
@@ -495,12 +510,12 @@ def calc_exposures(
         zerodelta = zerodelta[0][0]
     else:
         zerodelta = 0
-        print("delta flip not found for", ticker, expir)
+        logger.warning(f"Delta flip not found for {ticker} {expir}")
     if zerogamma.size > 0:
         zerogamma = zerogamma[0][0]
     else:
         zerogamma = 0
-        print("gamma flip not found for", ticker, expir)
+        logger.warning(f"Gamma flip not found for {ticker} {expir}")
 
     return (
         option_data,
@@ -530,6 +545,7 @@ def get_options_data_json(ticker, expir, tz):
     :param tz: The timezone.
     :return: The options data.
     """
+    logger.debug(f"Getting options data from JSON for ticker: {ticker}, expiration: {expir}")
     try:
         # CBOE file format, json
         with open(
@@ -538,7 +554,7 @@ def get_options_data_json(ticker, expir, tz):
             json_data = json_file.read()
         data = pd.json_normalize(orjson.loads(json_data))
     except orjson.JSONDecodeError as e:  # handle error if data unavailable
-        print(f"{e}, {ticker} {expir} data is unavailable")
+        logger.error(f"{e}, {ticker} {expir} data is unavailable")
         return
 
     # Get Spot
@@ -570,7 +586,7 @@ def get_options_data_json(ticker, expir, tz):
             option_data = option_data[option_data["expiration_date"] != first_expiry]
             first_expiry = all_dates.iat[1]
         except IndexError:
-            print("next date unavailable. using expired date")
+            logger.warning("Next date unavailable. Using expired date.")
 
     tzinfo = today_date.date_obj.tzinfo
     year = today_ddt.year
@@ -629,6 +645,7 @@ def get_options_data_csv(ticker, expir, tz):
     :param tz: The timezone.
     :return: The options data.
     """
+    logger.debug(f"Getting options data from CSV for ticker: {ticker}, expiration: {expir}")
     try:
         # CBOE file format, csv
         with open(

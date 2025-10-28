@@ -18,7 +18,11 @@ from datetime import timedelta
 from zoneinfo import ZoneInfo
 from dotenv import load_dotenv
 from os import environ
+from modules.logging_config import setup_logging
 
+logger = setup_logging()
+import logging
+logging.getLogger('apscheduler').setLevel(logging.WARNING)
 load_dotenv()  # load environment variables from .env
 
 # The Dash application instance.
@@ -62,6 +66,7 @@ def analyze_data(ticker, expir):
     :param ticker: The ticker symbol of the stock.
     :param expir: The expiration date of the options.
     """
+    logger.debug(f"Analyzing data for ticker: {ticker}, expiration: {expir}")
     # Analyze stored data of specified ticker and expiry
     # defaults: json format, timezone 'America/New_York'
     result = get_options_data(
@@ -70,6 +75,7 @@ def analyze_data(ticker, expir):
         is_json=True,  # False for CSV
         tz="Asia/Shanghai",
     )
+    logger.debug(f"Analysis result: {result}")
     return result if result else (None,) * 16
 
 
@@ -80,6 +86,7 @@ def cache_data(ticker, expir):
     :param ticker: The ticker symbol of the stock.
     :param expir: The expiration date of the options.
     """
+    logger.debug(f"Caching data for ticker: {ticker}, expiration: {expir}")
     data = analyze_data(ticker, expir)
     if not cache.has(f"{ticker}_{expir}"):
         cache.set(  # for client/server sync
@@ -94,6 +101,7 @@ def cache_data(ticker, expir):
                 "zero_gamma": data[12],
             },
         )
+    logger.debug(f"Cached data: {data}")
     return data
 
 
@@ -103,33 +111,39 @@ def sensor(select=None):
 
     :param select: A list of tickers to download data for. If None, downloads data for all tickers.
     """
+    logger.debug(f"Sensor triggered for selection: {select}")
     # default: all tickers, json format
     dwn_data(select, is_json=True)  # False for CSV
     cache.clear()
+    logger.debug("Sensor finished and cache cleared.")
 
 
 def check_for_retry():
     """
     Checks if there are any tickers that need to be redownloaded.
     """
+    logger.debug("Checking for retry...")
     tickers = cache.get("retry")
     if tickers:
-        print("\nRedownloading data due to missing greek exposure...\n")
+        logger.info("Redownloading data due to missing greek exposure...")
         sensor(select=tickers)
+    logger.debug("Check for retry finished.")
 
 
 # respond to prompt if env variable not set
 # The response from the user to download recent data.
 response = environ.get("AUTO_RESPONSE")
+logger.debug(f"AUTO_RESPONSE environment variable set to: {response}")
 if not response:
     try:
         response = input("\nDownload recent data? (y/n): ")
     except EOFError:
         response = "n"
 if response.strip().lower() == "y":  # download data at start
+    logger.info("Downloading initial data...")
     sensor()
 else:
-    print("\nUsing existing data...\n")
+    logger.info("Using existing data...")
 
 # schedule when to redownload data
 # The scheduler for redownloading data.
@@ -156,45 +170,12 @@ sched.add_job(
         ]
     ),
 )
+from apscheduler.triggers.interval import IntervalTrigger
 sched.add_job(
     check_for_retry,
-    combining.OrTrigger(
-        [
-            cron.CronTrigger(
-                day_of_week="0-4",
-                hour="9",
-                minute="30-59",
-                second="*/5",
-                timezone=ZoneInfo("Asia/Shanghai"),
-            ),
-            cron.CronTrigger(
-                day_of_week="0-4",
-                hour="10",
-                second="*/5",
-                timezone=ZoneInfo("Asia/Shanghai"),
-            ),
-            cron.CronTrigger(
-                day_of_week="0-4",
-                hour="11",
-                minute="0-30",
-                second="*/5",
-                timezone=ZoneInfo("Asia/Shanghai"),
-            ),
-            cron.CronTrigger(
-                day_of_week="0-4",
-                hour="13-14",
-                second="*/5",
-                timezone=ZoneInfo("Asia/Shanghai"),
-            ),
-            cron.CronTrigger(
-                day_of_week="0-4",
-                hour="15",
-                minute="0",
-                second="*/5",
-                timezone=ZoneInfo("Asia/Shanghai"),
-            ),
-        ]  # during the specified times, check every 5 seconds for a retry condition
-    ),
+    trigger=IntervalTrigger(seconds=10),
+    id="check_for_retry_job",
+    replace_existing=True
 )
 sched.start()
 
@@ -236,10 +217,12 @@ def on_click_expirations(value, btn, expiration):
     :param btn: The number of clicks on the all button.
     :param expiration: The current expiration date.
     """
+    logger.debug(f"on_click_expirations called with value: {value}, btn: {btn}, expiration: {expiration}")
     if not ctx.triggered_id and expiration:
         value = f"{expiration}-btn" if expiration != "all" else "all-btn"
 
     if ctx.triggered_id == "all-btn" or value == "all-btn":
+        logger.debug("Returning 'all' expiration")
         return "all", True, None
     else:
         button_map = {
@@ -248,7 +231,9 @@ def on_click_expirations(value, btn, expiration):
             "this-season-btn": ("this-season", False, "this-season-btn"),
             "next-season-btn": ("next-season", False, "next-season-btn"),
         }
-        return button_map.get(value, ("next-month", False, "next-month-btn"))
+        result = button_map.get(value, ("next-month", False, "next-month-btn"))
+        logger.debug(f"Returning expiration: {result}")
+        return result
 
 
 @app.callback(  # handle selected option greek
@@ -280,6 +265,7 @@ def on_click_greeks(btn1, btn2, btn3, btn4, active_page, value, greek):
     :param value: The value of the live dropdown.
     :param greek: The current greek value.
     """
+    logger.debug(f"on_click_greeks called with: active_page={active_page}, value={value}, greek={greek}")
     if not ctx.triggered_id and greek:
         is_active1, is_active2, is_active3, is_active4 = greek["is_active"]
         active_page, options, value = (
@@ -354,6 +340,7 @@ def on_click_greeks(btn1, btn2, btn3, btn4, active_page, value, greek):
         "value": value,
     }
 
+    logger.debug(f"Returning greek: {greek}")
     return (
         greek,
         is_active1,
@@ -383,6 +370,7 @@ def check_cache_key(n_intervals, stock, expiration, fig):
     :param expiration: The expiration date.
     :param fig: The figure object.
     """
+    logger.debug(f"Checking cache key for stock: {stock}, expiration: {expiration}")
     data = cache.get(f"{stock.lower()}_{expiration}")
     if not data and stock and expiration:
         cache_data(stock.lower(), expiration)
@@ -406,6 +394,7 @@ def check_cache_key(n_intervals, stock, expiration, fig):
             )
         )
     ):  # refresh on current selection if client data differs from server cache
+        logger.debug("Cache key is outdated, refreshing data.")
         return data, 0
     raise PreventUpdate
 
@@ -433,6 +422,7 @@ def handle_menu(btn1, btn2, stock, expiration, active_page, value, fig):
     :param value: The value of the live dropdown.
     :param fig: The figure object.
     """
+    logger.debug(f"handle_menu called with stock: {stock}, expiration: {expiration}, active_page: {active_page}, value: {value}")
     data = cache.get(f"{stock.lower()}_{expiration}")
     if not data or not data["today_ddt"] or not fig["data"]:
         raise PreventUpdate
@@ -559,6 +549,7 @@ def update_live_chart(value, stock, expiration, active_page, refresh, toggle_dar
     :param refresh: The refresh data.
     :param toggle_dark: A boolean indicating whether to use the dark theme.
     """
+    logger.debug(f"update_live_chart called with value: {value}, stock: {stock}, expiration: {expiration}, active_page: {active_page}")
     (
         df,
         today_ddt,
