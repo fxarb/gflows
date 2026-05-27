@@ -20,7 +20,7 @@ def fulfill_req(ticker, is_json, session):
     """
     logger.debug(f"Fulfilling request for ticker: {ticker}, is_json: {is_json}")
     # The URL of the API to download the data from.
-    api_url = environ.get("API_URL", 'https://cdn.cboe.com/api/global/delayed_quotes/options/{0}.json').format(ticker.upper()).strip()
+    api_url = environ.get("API_URL", 'https://cdn.cboe.com/api/global/quotes/options/{0}.json').format(ticker.upper()).strip()
     logger.debug(f"API URL for {ticker}: {api_url}")
     ticker = ticker.lower() if ticker[0] != "_" else ticker[1:].lower()
     # The format of the data to download.
