@@ -106,6 +106,7 @@ def cache_data(ticker, expir):
                 "zero_delta": data[11],
                 "zero_gamma": data[12],
             },
+            timeout=60,
         )
     logger.debug(f"Cached data: {data}")
     return data
@@ -362,6 +363,7 @@ def check_cache_key(n_intervals, stock, expiration, fig):
     data = cache.get(f"{stock.lower()}_{expiration}")
     if not data and stock and expiration:
         cache_data(stock.lower(), expiration)
+        data = cache.get(f"{stock.lower()}_{expiration}")
     if (
         data
         and (fig and fig["data"])
