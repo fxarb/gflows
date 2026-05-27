@@ -568,8 +568,8 @@ def get_options_data_json(ticker, expir, tz):
         }
     ).get_date_data(str(data["timestamp"][0]))
     # Handle date formats
-    today_ddt = today_date.date_obj - timedelta(minutes=15)
-    today_ddt_string = today_ddt.strftime("%Y %b %d, %I:%M %p %Z") + " (15min delay)"
+    today_ddt = today_date.date_obj
+    today_ddt_string = today_ddt.strftime("%Y %b %d, %I:%M %p %Z")
 
     option_data = format_data(
         data["data.options"][0],
@@ -718,8 +718,8 @@ def get_options_data_csv(ticker, expir, tz):
             "RETURN_AS_TIMEZONE_AWARE": True,
         }
     ).get_date_data(today_date)
-    today_ddt = today_date.date_obj - timedelta(minutes=15)
-    today_ddt_string = today_ddt.strftime("%Y %b %d, %I:%M %p %Z") + " (15min delay)"
+    today_ddt = today_date.date_obj
+    today_ddt_string = today_ddt.strftime("%Y %b %d, %I:%M %p %Z")
 
     option_data["expiration_date"] = pd.to_datetime(
         option_data["expiration_date"], format="%a %b %d %Y"
