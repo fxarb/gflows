@@ -13,6 +13,7 @@ from modules.calc import get_options_data
 from modules.ticker_dwn import dwn_data
 from modules.layout import serve_layout
 from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers import cron, combining
 from apscheduler.triggers.interval import IntervalTrigger
 from datetime import timedelta
 from zoneinfo import ZoneInfo
@@ -47,19 +48,13 @@ cache = Cache(
         "CACHE_TYPE": "FileSystemCache",
         "CACHE_DIR": "cache",
         "CACHE_THRESHOLD": 150,
-        "CACHE_DEFAULT_TIMEOUT": 60,
     },
 )
 
 cache.clear()
 
 # The layout of the app.
-@cache.cached(timeout=60)
-def layout():
-    return serve_layout()
-
-
-app.layout = layout
+app.layout = serve_layout
 # The Flask server instance.
 server = app.server
 
@@ -157,7 +152,28 @@ else:
 sched = BackgroundScheduler(daemon=True)
 sched.add_job(
     sensor,
-    trigger=IntervalTrigger(minutes=1),
+    combining.OrTrigger(
+        [
+            cron.CronTrigger(
+                day_of_week="0-4",
+                hour="9",
+                minute="15-59",
+                timezone=ZoneInfo("Asia/Shanghai"),
+            ),
+            cron.CronTrigger(
+                day_of_week="0-4",
+                hour="10-14",
+                minute="*",
+                timezone=ZoneInfo("Asia/Shanghai"),
+            ),
+            cron.CronTrigger(
+                day_of_week="0-4",
+                hour="15",
+                minute="0-30",
+                timezone=ZoneInfo("Asia/Shanghai"),
+            ),
+        ]
+    ),
 )
 
 sched.add_job(

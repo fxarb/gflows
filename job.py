@@ -1,6 +1,9 @@
 import requests
 import json
 from apscheduler.schedulers.blocking import BlockingScheduler
+from apscheduler.triggers.cron import CronTrigger
+from apscheduler.triggers.combining import OrTrigger
+from zoneinfo import ZoneInfo
 from cboe_exchange.converter import convert_szosho_to_cboe
 import re
 import os
@@ -57,8 +60,30 @@ if __name__ == "__main__":
     # fetch_and_convert()
 
     scheduler = BlockingScheduler()
-    # Schedule the job to run every minute
-    scheduler.add_job(fetch_and_convert, 'interval', minutes=1)
+    # Schedule the job to run every minute between 09:15 and 15:30 Shanghai time
+    trigger = OrTrigger(
+        [
+            CronTrigger(
+                day_of_week="0-4",
+                hour="9",
+                minute="15-59",
+                timezone=ZoneInfo("Asia/Shanghai"),
+            ),
+            CronTrigger(
+                day_of_week="0-4",
+                hour="10-14",
+                minute="*",
+                timezone=ZoneInfo("Asia/Shanghai"),
+            ),
+            CronTrigger(
+                day_of_week="0-4",
+                hour="15",
+                minute="0-30",
+                timezone=ZoneInfo("Asia/Shanghai"),
+            ),
+        ]
+    )
+    scheduler.add_job(fetch_and_convert, trigger=trigger)
     logger.info("Scheduler started. Press Ctrl+C to exit.")
     try:
         scheduler.start()
