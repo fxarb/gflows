@@ -13,7 +13,7 @@ from modules.calc import get_options_data
 from modules.ticker_dwn import dwn_data
 from modules.layout import serve_layout
 from apscheduler.schedulers.background import BackgroundScheduler
-from apscheduler.triggers import cron, combining
+from apscheduler.triggers.interval import IntervalTrigger
 from datetime import timedelta
 from zoneinfo import ZoneInfo
 from dotenv import load_dotenv
@@ -47,18 +47,24 @@ cache = Cache(
         "CACHE_TYPE": "FileSystemCache",
         "CACHE_DIR": "cache",
         "CACHE_THRESHOLD": 150,
+        "CACHE_DEFAULT_TIMEOUT": 60,
     },
 )
 
 cache.clear()
 
 # The layout of the app.
-app.layout = serve_layout
+@cache.cached(timeout=60)
+def layout():
+    return serve_layout()
+
+
+app.layout = layout
 # The Flask server instance.
 server = app.server
 
 
-@cache.memoize(timeout=60 * 15)  # cache charts for 15 min
+@cache.memoize(timeout=60)  # cache charts for 1 min
 def analyze_data(ticker, expir):
     """
     Analyzes the options data for a given ticker and expiration date.
@@ -150,28 +156,8 @@ else:
 sched = BackgroundScheduler(daemon=True)
 sched.add_job(
     sensor,
-    combining.OrTrigger(
-        [
-            cron.CronTrigger(
-                minute="30,45", hour="9", day_of_week="0-4", timezone=ZoneInfo("Asia/Shanghai")
-            ),
-            cron.CronTrigger(
-                minute="*/15", hour="10", day_of_week="0-4", timezone=ZoneInfo("Asia/Shanghai")
-            ),
-            cron.CronTrigger(
-                minute="0,15,30", hour="11", day_of_week="0-4", timezone=ZoneInfo("Asia/Shanghai")
-            ),
-            cron.CronTrigger(
-                minute="*/15", hour="13-14", day_of_week="0-4", timezone=ZoneInfo("Asia/Shanghai")
-            ),
-            cron.CronTrigger(
-                minute="0", hour="15", day_of_week="0-4", timezone=ZoneInfo("Asia/Shanghai")
-            ),
-        ]
-    ),
+    trigger=IntervalTrigger(minutes=1),
 )
-
-from apscheduler.triggers.interval import IntervalTrigger
 
 sched.add_job(
     check_for_retry,

@@ -29,7 +29,7 @@ _exp_date_regex = compile(r"(\d{6})([CP])")  # Regex for extracting expiration d
 
 
 # fetch risk-free rate from a URL
-@cached(cache=TTLCache(maxsize=1, ttl=60 * 15))  # in-memory cache for 15 min
+@cached(cache=TTLCache(maxsize=1, ttl=60))  # in-memory cache for 1 min
 def get_risk_free_rate():
     """
     Fetches the risk-free rate from a URL specified in the RISK_FREE_RATE_URL environment variable.
