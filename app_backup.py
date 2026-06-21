@@ -2,12 +2,11 @@ import dash_bootstrap_components as dbc
 import plotly.graph_objects as go
 import plotly.io as pio
 from plotly.subplots import make_subplots
-from dash import Dash, html, Input, Output, ctx, no_update, State, ALL
+from dash import Dash, html, Input, Output, ctx, no_update, State
 from dash.dcc import send_data_frame
 from dash.exceptions import PreventUpdate
 
 import textwrap
-import pandas as pd
 from pandas import DataFrame, concat
 from flask_caching import Cache
 from modules.calc import get_options_data
@@ -16,7 +15,7 @@ from modules.layout import serve_layout
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers import cron, combining
 from apscheduler.triggers.interval import IntervalTrigger
-from datetime import datetime, timedelta
+from datetime import timedelta
 from zoneinfo import ZoneInfo
 from dotenv import load_dotenv
 from os import environ
@@ -78,8 +77,7 @@ def analyze_data(ticker, expir):
         tz="Asia/Shanghai",
     )
     logger.debug(f"Analysis result: {result}")
-    # Standardized return signature to 15 elements to accommodate Theta and flip points.
-    return result if result else (None,) * 15
+    return result if result else (None,) * 16
 
 
 def cache_data(ticker, expir):
@@ -188,7 +186,7 @@ sched.start()
 
 
 app.clientside_callback(  # toggle light or dark theme
-    """ 
+    """
     (themeToggle, theme) => {
         let themeLink = themeToggle ? theme[1] : theme[0]
         let kofiBtn = themeToggle ? "dark" : "light"
@@ -363,42 +361,24 @@ def on_click_greeks(btn1, btn2, btn3, btn4, active_page, value, greek):
 @app.callback(  # handle refreshed data
     Output("refresh", "data"),
     Output("interval", "n_intervals"),
-    Output("positions-store", "data", allow_duplicate=True),
     Input("interval", "n_intervals"),
     State("tabs", "active_tab"),
     State("exp-value", "data"),
     State("live-chart", "figure"),
-    State("positions-store", "data"),
-    prevent_initial_call=True,
 )
-def check_cache_key(n_intervals, stock, expiration, fig, positions):
+def check_cache_key(n_intervals, stock, expiration, fig):
     """
-    Checks if the data in the cache is up to date and cleans expired positions.
+    Checks if the data in the cache is up to date.
 
     :param n_intervals: The number of intervals that have passed.
     :param stock: The stock ticker.
     :param expiration: The expiration date.
     :param fig: The figure object.
-    :param positions: Current positions dictionary for expiration cleanup.
     """
     logger.debug(f"Checking cache key for stock: {stock}, expiration: {expiration}")
     data = cache.get(f"{stock.lower()}_{expiration}")
     if not data and stock and expiration:
         cache_data(stock.lower(), expiration)
-
-    # Automatic removal of expired options from the position store.
-    new_positions = positions.copy() if positions else {}
-    changed = False
-    if positions:
-        now = datetime.now(ZoneInfo("Asia/Shanghai"))
-        for key in list(new_positions.keys()):
-            expiry_str = key.split("|")[1]
-            # Assumes 3 PM (15:00) as expiration time for cleanup logic.
-            expiry_dt = pd.to_datetime(expiry_str).tz_localize(ZoneInfo("Asia/Shanghai")) + timedelta(hours=15)
-            if expiry_dt < now:
-                del new_positions[key]
-                changed = True
-
     if (
         data
         and (fig and fig["data"])
@@ -420,11 +400,7 @@ def check_cache_key(n_intervals, stock, expiration, fig, positions):
         )
     ):  # refresh on current selection if client data differs from server cache
         logger.debug("Cache key is outdated, refreshing data.")
-        return data, 0, new_positions if changed else no_update
-
-    if changed:
-        return no_update, no_update, new_positions
-
+        return data, 0
     raise PreventUpdate
 
 
@@ -554,240 +530,6 @@ def handle_menu(btn1, btn2, stock, expiration, active_page, value, fig):
             significant_points.fillna(0).to_csv,
             f"{stock}_SigPoints_{filename}",
         )
-
-
-@app.callback(
-    Output("positions-store", "data"),
-    Input({"type": "pos-btn", "index": ALL}, "n_clicks"),
-    State("positions-store", "data"),
-    prevent_initial_call=True,
-)
-def update_positions(n_clicks, positions):
-    """
-    Handles clicks on the plus/minus buttons to increment or decrement
-    the quantity of a specific option in the persistent position store.
-
-    :param n_clicks: A list of n_clicks for all pattern-matched buttons.
-    :param positions: The dictionary of current positions (from dcc.Store).
-    :return: The updated positions dictionary.
-    """
-    if not ctx.triggered_id:
-        raise PreventUpdate
-
-    # The triggered_id["index"] contains encoded metadata about the option.
-    # index format: ticker|expiry|strike|type|side
-    index = ctx.triggered_id["index"]
-    parts = index.split("|")
-    ticker, expiry, strike, opt_type, side = parts[0], parts[1], parts[2], parts[3], parts[4]
-
-    # Unique identifier for the option position (excluding the action/side).
-    pos_key = f"{ticker}|{expiry}|{strike}|{opt_type}"
-    current_qty = positions.get(pos_key, 0)
-
-    # Update quantity based on which button side (plus/minus) was clicked.
-    if side == "plus":
-        positions[pos_key] = current_qty + 1
-    else:
-        positions[pos_key] = current_qty - 1
-
-    # If the quantity drops to zero, remove the position from the store entirely.
-    if positions[pos_key] == 0:
-        del positions[pos_key]
-
-    return positions
-
-
-@app.callback(
-    Output("strike-list-container", "children"),
-    Input("tabs", "active_tab"),
-    Input("refresh", "data"),
-    Input("positions-store", "data"),
-)
-def render_strike_list(ticker, refresh, positions):
-    """
-    Renders a dynamic list of all available option strikes for the currently
-    selected ticker, grouped by expiration date using accordions.
-    Each strike includes its instrument name and buttons to manage the position.
-
-    :param ticker: The ticker symbol from the active tab.
-    :param refresh: Triggered when data is refreshed.
-    :param positions: Current positions dictionary for reflecting quantities in UI.
-    :return: A list of layout components representing the strike list.
-    """
-    if not ticker:
-        return ""
-
-    # Fetch all expiration data for the current ticker.
-    (
-        df,
-        today_ddt,
-        today_ddt_string,
-        spot_price,
-        from_strike,
-        to_strike,
-        levels,
-        totaldelta,
-        totalgamma,
-        totalvanna,
-        totalcharm,
-        zerodelta,
-        zerogamma,
-        call_ivs,
-        put_ivs,
-    ) = analyze_data(ticker.lower(), "all")
-
-    if df.empty:
-        return "Data unavailable"
-
-    # Group the options by expiration date.
-    expiries = df["expiration_date"].unique()
-    accordion_items = []
-
-    for expiry in sorted(expiries):
-        expiry_df = df[df["expiration_date"] == expiry]
-        expiry_str = pd.to_datetime(expiry).strftime("%Y-%m-%d")
-
-        strike_rows = []
-        for _, row in expiry_df.iterrows():
-            strike = row["strike_price"]
-
-            # Create a row for the Call option at this strike.
-            call_key = f"{ticker.lower()}|{expiry_str}|{strike}|C"
-            call_qty = positions.get(call_key, 0)
-            call_name = row["calls"] if pd.notna(row["calls"]) else f"{ticker}{expiry_str}C{strike}"
-
-            strike_rows.append(dbc.Row(
-                [
-                    dbc.Col(html.Span(call_name, style={"fontSize": "12px"}), width=6),
-                    dbc.Col(
-                        dbc.ButtonGroup(
-                            [
-                                dbc.Button("-", id={"type": "pos-btn", "index": f"{call_key}|minus"}, size="sm", color="danger", outline=True),
-                                html.Div(str(call_qty), className="px-2 my-auto"),
-                                dbc.Button("+", id={"type": "pos-btn", "index": f"{call_key}|plus"}, size="sm", color="success", outline=True),
-                            ]
-                        ),
-                        width=6,
-                        className="d-flex justify-content-end"
-                    )
-                ],
-                className="mb-1 align-items-center"
-            ))
-
-            # Create a row for the Put option at this strike.
-            put_key = f"{ticker.lower()}|{expiry_str}|{strike}|P"
-            put_qty = positions.get(put_key, 0)
-            put_name = row["puts"] if pd.notna(row["puts"]) else f"{ticker}{expiry_str}P{strike}"
-
-            strike_rows.append(dbc.Row(
-                [
-                    dbc.Col(html.Span(put_name, style={"fontSize": "12px"}), width=6),
-                    dbc.Col(
-                        dbc.ButtonGroup(
-                            [
-                                dbc.Button("-", id={"type": "pos-btn", "index": f"{put_key}|minus"}, size="sm", color="danger", outline=True),
-                                html.Div(str(put_qty), className="px-2 my-auto"),
-                                dbc.Button("+", id={"type": "pos-btn", "index": f"{put_key}|plus"}, size="sm", color="success", outline=True),
-                            ]
-                        ),
-                        width=6,
-                        className="d-flex justify-content-end"
-                    )
-                ],
-                className="mb-2 align-items-center"
-            ))
-
-        # Group strikes of the same expiry into an accordion item.
-        accordion_items.append(dbc.AccordionItem(
-            strike_rows,
-            title=f"Expiry: {expiry_str}"
-        ))
-
-    return dbc.Accordion(accordion_items, start_collapsed=True)
-
-
-@app.callback(
-    Output("pos-delta", "children"),
-    Output("pos-gamma", "children"),
-    Output("pos-theta", "children"),
-    Input("positions-store", "data"),
-    Input("refresh", "data"),
-    State("tabs", "active_tab"),
-)
-def display_position_greeks(positions, refresh, active_tab):
-    """
-    Calculates and displays the aggregate Delta, Gamma, and Theta
-    for all options currently held in the position store across all tickers.
-
-    :param positions: Dictionary of current positions and their quantities.
-    :param refresh: Triggered on data refresh.
-    :param active_tab: Current active tab (contextual).
-    :return: Strings formatted with the total Greeks.
-    """
-    if not positions:
-        return "Delta: 0", "Gamma: 0", "Theta: 0"
-
-    total_delta = 0
-    total_gamma = 0
-    total_theta = 0
-
-    # Group positions by ticker to minimize analyze_data calls.
-    ticker_positions = {}
-    for key, qty in positions.items():
-        ticker = key.split("|")[0]
-        if ticker not in ticker_positions:
-            ticker_positions[ticker] = []
-        ticker_positions[ticker].append((key, qty))
-
-    for ticker, pos_list in ticker_positions.items():
-        # Fetch current market data for the ticker to get latest Greek values.
-        (
-            df,
-            today_ddt,
-            _,
-            _,
-            _,
-            _,
-            _,
-            _,
-            _,
-            _,
-            _,
-            _,
-            _,
-            _,
-            _,
-        ) = analyze_data(ticker, "all")
-
-        if df.empty:
-            continue
-
-        for key, qty in pos_list:
-            parts = key.split("|")
-            expiry_str, strike, opt_type = parts[1], float(parts[2]), parts[3]
-
-            # Skip expired options (though they should be cleaned up by check_cache_key).
-            expiry_dt = pd.to_datetime(expiry_str).tz_localize(today_ddt.tzinfo) + timedelta(hours=15)
-            if expiry_dt < today_ddt:
-                continue
-
-            # Match the position with latest market data using string-formatted date for reliability.
-            match = df[(df["expiration_date"].dt.strftime("%Y-%m-%d") == expiry_str) & (df["strike_price"] == strike)]
-            if not match.empty:
-                if opt_type == "C":
-                    total_delta += match.iloc[0]["call_delta"] * qty
-                    total_gamma += match.iloc[0]["call_gamma"] * qty
-                    total_theta += match.iloc[0]["call_theta"] * qty
-                else:
-                    total_delta += match.iloc[0]["put_delta"] * qty
-                    total_gamma += match.iloc[0]["put_gamma"] * qty
-                    total_theta += match.iloc[0]["put_theta"] * qty
-
-    return (
-        f"Delta: {total_delta:.4f}",
-        f"Gamma: {total_gamma:.4f}",
-        f"Theta: {total_theta:.4f}",
-    )
 
 
 @app.callback(  # handle chart display based on inputs

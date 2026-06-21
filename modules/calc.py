@@ -82,7 +82,7 @@ def format_data(data, today_ddt, tzinfo):
     :return: The formatted options data.
     """
     logger.debug("Formatting data...")
-    keys_to_keep = ["option", "iv", "open_interest", "delta", "gamma"]
+    keys_to_keep = ["option", "iv", "open_interest", "delta", "gamma", "theta"]
     data = pd.DataFrame([{k: d[k] for k in keys_to_keep if k in d} for d in data])
 
     # Extract strike, expiration date, and option type
@@ -108,6 +108,7 @@ def format_data(data, today_ddt, tzinfo):
             "open_interest": "call_open_int",
             "delta": "call_delta",
             "gamma": "call_gamma",
+            "theta": "call_theta",
         }
     )
     puts = puts.rename(
@@ -117,10 +118,11 @@ def format_data(data, today_ddt, tzinfo):
             "open_interest": "put_open_int",
             "delta": "put_delta",
             "gamma": "put_gamma",
+            "theta": "put_theta",
         }
     )
 
-    # Merge calls and puts on strike and expiration
+    # Merge calls and puts on strike and expiration to create a single row per strike/expiry.
     data = pd.merge(
         calls[
             [
@@ -131,6 +133,7 @@ def format_data(data, today_ddt, tzinfo):
                 "call_open_int",
                 "call_delta",
                 "call_gamma",
+                "call_theta",
             ]
         ],
         puts[
@@ -142,6 +145,7 @@ def format_data(data, today_ddt, tzinfo):
                 "put_open_int",
                 "put_delta",
                 "put_gamma",
+                "put_theta",
             ]
         ],
         on=["expiration_date", "strike_price"],
@@ -183,8 +187,8 @@ def calc_exposures(
     logger.debug(f"Calculating exposures for ticker: {ticker}, expiration: {expir}")
     if option_data.empty:
         logger.warning("Option data is empty, returning empty result.")
-        # Return a tuple of Nones with the expected length
-        return (pd.DataFrame(), None, None, None, None, None, None, None, {}, {}, {}, {}, None, None, {}, {})
+        # Return a tuple of Nones with the expected length (15)
+        return (pd.DataFrame(), None, None, None, None, None, None, {}, {}, {}, {}, 0, 0, {}, {})
     dividend_yield = 0.0  # assume 0
     risk_free_rate = get_risk_free_rate()
 
@@ -299,7 +303,7 @@ def calc_exposures(
         )[0],
         0,
     )
-    # Calculate total and scale down
+    # Calculate total Greek exposures by summing Call and Put components and scaling to billions.
     option_data["total_delta"] = (
         option_data["call_dex"].to_numpy() + option_data["put_dex"].to_numpy()
     ) / 10**9

@@ -36,6 +36,7 @@ def serve_layout():
                 storage_type="local",
                 data=[dbc.themes.FLATLY, dbc.themes.DARKLY],
             ),
+            dcc.Store(id="positions-store", storage_type="local", data={}),
             dbc.Row(
                 children=[
                     dbc.Button(
@@ -272,6 +273,33 @@ def serve_layout():
                     ),
                 ],
                 type="default",
+            ),
+            # Positions Builder section
+            dbc.Row(
+                [
+                    dbc.Col(
+                        [
+                            html.H3("Positions", className="text-center mt-4"),
+                            dbc.Card(
+                                dbc.CardBody(
+                                    [
+                                        dbc.Row(
+                                            [
+                                                dbc.Col(html.Div(id="pos-delta", className="text-center"), width=4),
+                                                dbc.Col(html.Div(id="pos-gamma", className="text-center"), width=4),
+                                                dbc.Col(html.Div(id="pos-theta", className="text-center"), width=4),
+                                            ]
+                                        )
+                                    ]
+                                ),
+                                className="mb-4"
+                            ),
+                            # Dynamic container for strike list grouped by expiry
+                            html.Div(id="strike-list-container")
+                        ],
+                        width=12
+                    )
+                ]
             ),
             dbc.Row(
                 dbc.Accordion(
