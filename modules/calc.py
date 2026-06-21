@@ -74,15 +74,19 @@ def is_parsable(date):
 
 def format_data(data, today_ddt, tzinfo):
     """
-    Formats the options data.
+    Formats the options data, extracting all Greeks and market data.
 
-    :param data: The options data.
+    :param data: The raw options data list.
     :param today_ddt: The current date and time.
     :param tzinfo: The timezone info.
-    :return: The formatted options data.
+    :return: The formatted options data as a DataFrame.
     """
     logger.debug("Formatting data...")
-    keys_to_keep = ["option", "iv", "open_interest", "delta", "gamma", "theta"]
+    # Expanded keys to include all requested Greeks and market values.
+    keys_to_keep = [
+        "option", "iv", "open_interest", "delta", "gamma",
+        "theta", "vega", "rho", "theo"
+    ]
     data = pd.DataFrame([{k: d[k] for k in keys_to_keep if k in d} for d in data])
 
     # Extract strike, expiration date, and option type
@@ -100,7 +104,7 @@ def format_data(data, today_ddt, tzinfo):
     calls = data[data["option_type"] == "C"].copy()
     puts = data[data["option_type"] == "P"].copy()
 
-    # Rename columns for merging
+    # Rename columns for merging with specific prefixes
     calls = calls.rename(
         columns={
             "option": "calls",
@@ -109,6 +113,9 @@ def format_data(data, today_ddt, tzinfo):
             "delta": "call_delta",
             "gamma": "call_gamma",
             "theta": "call_theta",
+            "vega": "call_vega",
+            "rho": "call_rho",
+            "theo": "call_theo",
         }
     )
     puts = puts.rename(
@@ -119,6 +126,9 @@ def format_data(data, today_ddt, tzinfo):
             "delta": "put_delta",
             "gamma": "put_gamma",
             "theta": "put_theta",
+            "vega": "put_vega",
+            "rho": "put_rho",
+            "theo": "put_theo",
         }
     )
 
@@ -134,6 +144,9 @@ def format_data(data, today_ddt, tzinfo):
                 "call_delta",
                 "call_gamma",
                 "call_theta",
+                "call_vega",
+                "call_rho",
+                "call_theo",
             ]
         ],
         puts[
@@ -146,6 +159,9 @@ def format_data(data, today_ddt, tzinfo):
                 "put_delta",
                 "put_gamma",
                 "put_theta",
+                "put_vega",
+                "put_rho",
+                "put_theo",
             ]
         ],
         on=["expiration_date", "strike_price"],

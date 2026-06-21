@@ -36,7 +36,7 @@ def serve_layout():
                 storage_type="local",
                 data=[dbc.themes.FLATLY, dbc.themes.DARKLY],
             ),
-            dcc.Store(id="positions-store", storage_type="local", data={}),
+            dcc.Store(id="positions-store-v2", storage_type="local", data={}),
             dbc.Row(
                 children=[
                     dbc.Button(
