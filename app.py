@@ -574,6 +574,9 @@ def update_positions(n_clicks, positions):
     if not ctx.triggered_id:
         raise PreventUpdate
 
+    # Ensure positions is a dictionary.
+    new_positions = positions.copy() if positions else {}
+
     # The triggered_id["index"] contains encoded metadata about the option.
     # index format: ticker|expiry|strike|type|side
     index = ctx.triggered_id["index"]
@@ -582,19 +585,19 @@ def update_positions(n_clicks, positions):
 
     # Unique identifier for the option position (excluding the action/side).
     pos_key = f"{ticker}|{expiry}|{strike}|{opt_type}"
-    current_qty = positions.get(pos_key, 0)
+    current_qty = new_positions.get(pos_key, 0)
 
     # Update quantity based on which button side (plus/minus) was clicked.
     if side == "plus":
-        positions[pos_key] = current_qty + 1
+        new_positions[pos_key] = current_qty + 1
     else:
-        positions[pos_key] = current_qty - 1
+        new_positions[pos_key] = current_qty - 1
 
     # If the quantity drops to zero, remove the position from the store entirely.
-    if positions[pos_key] == 0:
-        del positions[pos_key]
+    if new_positions[pos_key] == 0:
+        del new_positions[pos_key]
 
-    return positions
+    return new_positions
 
 
 @app.callback(
@@ -606,13 +609,13 @@ def update_positions(n_clicks, positions):
 def render_strike_list(ticker, refresh, positions):
     """
     Renders a dynamic list of all available option strikes for the currently
-    selected ticker, grouped by expiration date using accordions.
-    Each strike includes its instrument name and buttons to manage the position.
+    selected ticker, grouped by expiration date using persistent Tabs.
+    The layout follows an option chain style with Call Greeks on the left and Put Greeks on the right.
 
     :param ticker: The ticker symbol from the active tab.
     :param refresh: Triggered when data is refreshed.
     :param positions: Current positions dictionary for reflecting quantities in UI.
-    :return: A list of layout components representing the strike list.
+    :return: A Tabs component containing the option chain for each expiration.
     """
     if not ticker:
         return ""
@@ -641,69 +644,92 @@ def render_strike_list(ticker, refresh, positions):
 
     # Group the options by expiration date.
     expiries = df["expiration_date"].unique()
-    accordion_items = []
+    expiry_tabs = []
 
     for expiry in sorted(expiries):
         expiry_df = df[df["expiration_date"] == expiry]
         expiry_str = pd.to_datetime(expiry).strftime("%Y-%m-%d")
 
-        strike_rows = []
+        # Header for the option chain
+        header = dbc.Row(
+            [
+                dbc.Col(html.B("G"), width=1, className="text-center small"),
+                dbc.Col(html.B("D"), width=1, className="text-center small"),
+                dbc.Col(html.B("Call"), width=3, className="text-center small"),
+                dbc.Col(html.B("Strike"), width=2, className="text-center small bg-light text-dark"),
+                dbc.Col(html.B("Put"), width=3, className="text-center small"),
+                dbc.Col(html.B("D"), width=1, className="text-center small"),
+                dbc.Col(html.B("G"), width=1, className="text-center small"),
+            ],
+            className="mb-2 gx-0"
+        )
+
+        strike_rows = [header]
         for _, row in expiry_df.iterrows():
             strike = row["strike_price"]
 
-            # Create a row for the Call option at this strike.
+            # Call side data
             call_key = f"{ticker.lower()}|{expiry_str}|{strike}|C"
             call_qty = positions.get(call_key, 0)
-            call_name = row["calls"] if pd.notna(row["calls"]) else f"{ticker}{expiry_str}C{strike}"
+            call_delta = row["call_delta"] if pd.notna(row["call_delta"]) else 0
+            call_gamma = row["call_gamma"] if pd.notna(row["call_gamma"]) else 0
 
-            strike_rows.append(dbc.Row(
-                [
-                    dbc.Col(html.Span(call_name, style={"fontSize": "12px"}), width=6),
-                    dbc.Col(
-                        dbc.ButtonGroup(
-                            [
-                                dbc.Button("-", id={"type": "pos-btn", "index": f"{call_key}|minus"}, size="sm", color="danger", outline=True),
-                                html.Div(str(call_qty), className="px-2 my-auto"),
-                                dbc.Button("+", id={"type": "pos-btn", "index": f"{call_key}|plus"}, size="sm", color="success", outline=True),
-                            ]
-                        ),
-                        width=6,
-                        className="d-flex justify-content-end"
-                    )
-                ],
-                className="mb-1 align-items-center"
-            ))
-
-            # Create a row for the Put option at this strike.
+            # Put side data
             put_key = f"{ticker.lower()}|{expiry_str}|{strike}|P"
             put_qty = positions.get(put_key, 0)
-            put_name = row["puts"] if pd.notna(row["puts"]) else f"{ticker}{expiry_str}P{strike}"
+            put_delta = row["put_delta"] if pd.notna(row["put_delta"]) else 0
+            put_gamma = row["put_gamma"] if pd.notna(row["put_gamma"]) else 0
 
             strike_rows.append(dbc.Row(
                 [
-                    dbc.Col(html.Span(put_name, style={"fontSize": "12px"}), width=6),
+                    # Call Gamma & Delta
+                    dbc.Col(html.Span(f"{call_gamma:.2f}", className="small"), width=1, className="text-center"),
+                    dbc.Col(html.Span(f"{call_delta:.2f}", className="small"), width=1, className="text-center"),
+                    # Call Buttons
                     dbc.Col(
                         dbc.ButtonGroup(
                             [
-                                dbc.Button("-", id={"type": "pos-btn", "index": f"{put_key}|minus"}, size="sm", color="danger", outline=True),
-                                html.Div(str(put_qty), className="px-2 my-auto"),
-                                dbc.Button("+", id={"type": "pos-btn", "index": f"{put_key}|plus"}, size="sm", color="success", outline=True),
-                            ]
+                                dbc.Button("-", id={"type": "pos-btn", "index": f"{call_key}|minus"}, size="sm", color="danger", outline=True, style={"padding": "0 5px"}),
+                                html.Div(str(call_qty), className="px-1 small my-auto", style={"minWidth": "20px", "textAlign": "center"}),
+                                dbc.Button("+", id={"type": "pos-btn", "index": f"{call_key}|plus"}, size="sm", color="success", outline=True, style={"padding": "0 5px"}),
+                            ],
+                            className="w-100"
                         ),
-                        width=6,
-                        className="d-flex justify-content-end"
-                    )
+                        width=3
+                    ),
+                    # Strike
+                    dbc.Col(html.B(f"{strike:g}"), width=2, className="text-center bg-light text-dark"),
+                    # Put Buttons
+                    dbc.Col(
+                        dbc.ButtonGroup(
+                            [
+                                dbc.Button("+", id={"type": "pos-btn", "index": f"{put_key}|plus"}, size="sm", color="success", outline=True, style={"padding": "0 5px"}),
+                                html.Div(str(put_qty), className="px-1 small my-auto", style={"minWidth": "20px", "textAlign": "center"}),
+                                dbc.Button("-", id={"type": "pos-btn", "index": f"{put_key}|minus"}, size="sm", color="danger", outline=True, style={"padding": "0 5px"}),
+                            ],
+                            className="w-100"
+                        ),
+                        width=3
+                    ),
+                    # Put Delta & Gamma
+                    dbc.Col(html.Span(f"{put_delta:.2f}", className="small"), width=1, className="text-center"),
+                    dbc.Col(html.Span(f"{put_gamma:.2f}", className="small"), width=1, className="text-center"),
                 ],
-                className="mb-2 align-items-center"
+                className="mb-1 align-items-center gx-0"
             ))
 
-        # Group strikes of the same expiry into an accordion item.
-        accordion_items.append(dbc.AccordionItem(
-            strike_rows,
-            title=f"Expiry: {expiry_str}"
+        expiry_tabs.append(dbc.Tab(
+            html.Div(strike_rows, className="mt-2", style={"maxHeight": "500px", "overflowY": "auto", "overflowX": "hidden"}),
+            label=expiry_str,
+            tab_id=f"tab-{expiry_str}"
         ))
 
-    return dbc.Accordion(accordion_items, start_collapsed=True)
+    return dbc.Tabs(
+        expiry_tabs,
+        id=f"expiry-tabs-{ticker}",
+        persistence=True,
+        persistence_type="local"
+    )
 
 
 @app.callback(
@@ -725,7 +751,7 @@ def display_position_greeks(positions, refresh, active_tab):
     :return: Strings formatted with the total Greeks.
     """
     if not positions:
-        return "Delta: 0", "Gamma: 0", "Theta: 0"
+        return "Position Delta: 0.0000", "Position Gamma: 0.0000", "Position Theta: 0.0000"
 
     total_delta = 0
     total_gamma = 0
@@ -784,9 +810,9 @@ def display_position_greeks(positions, refresh, active_tab):
                     total_theta += match.iloc[0]["put_theta"] * qty
 
     return (
-        f"Delta: {total_delta:.4f}",
-        f"Gamma: {total_gamma:.4f}",
-        f"Theta: {total_theta:.4f}",
+        f"Position Delta: {total_delta:.4f}",
+        f"Position Gamma: {total_gamma:.4f}",
+        f"Position Theta: {total_theta:.4f}",
     )
 
 

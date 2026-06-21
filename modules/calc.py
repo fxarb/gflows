@@ -304,6 +304,7 @@ def calc_exposures(
         0,
     )
     # Calculate total Greek exposures by summing Call and Put components and scaling to billions.
+    # Delta and Gamma are additive, while Vanna and Charm are calculated as the difference between Call and Put exposures.
     option_data["total_delta"] = (
         option_data["call_dex"].to_numpy() + option_data["put_dex"].to_numpy()
     ) / 10**9
@@ -520,6 +521,9 @@ def calc_exposures(
         zerogamma = 0
         logger.warning(f"Gamma flip not found for {ticker} {expir}")
 
+    # Returns a standardized 15-element tuple used throughout the application.
+    # The elements include the processed DataFrame, market metadata, calculated exposures,
+    # and volatility averages for both calls and puts.
     return (
         option_data,
         today_ddt,
