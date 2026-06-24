@@ -52,8 +52,8 @@ def sample_options_data():
     Provides a sample of raw options data as a fixture.
     """
     return [
-        {'option': 'SPXW241011C04450000', 'iv': 0.1, 'open_interest': 10, 'delta': 0.5, 'gamma': 0.02},
-        {'option': 'SPXW241011P04450000', 'iv': 0.12, 'open_interest': 12, 'delta': -0.4, 'gamma': 0.021},
+        {'option': 'SPXW241011C04450000', 'iv': 0.1, 'open_interest': 10, 'delta': 0.5, 'gamma': 0.02, 'theta': -0.05, 'vega': 0.1, 'rho': 0.01, 'theo': 10.0},
+        {'option': 'SPXW241011P04450000', 'iv': 0.12, 'open_interest': 12, 'delta': -0.4, 'gamma': 0.021, 'theta': -0.04, 'vega': 0.11, 'rho': -0.01, 'theo': 11.0},
     ]
 
 def test_format_data(sample_options_data):
@@ -68,8 +68,9 @@ def test_format_data(sample_options_data):
     # Check that the dataframe has the correct columns
     expected_columns = [
         'expiration_date', 'strike_price', 'calls', 'call_iv', 'call_open_int',
-        'call_delta', 'call_gamma', 'puts', 'put_iv', 'put_open_int',
-        'put_delta', 'put_gamma', 'time_till_exp'
+        'call_delta', 'call_gamma', 'call_theta', 'call_vega', 'call_rho', 'call_theo',
+        'puts', 'put_iv', 'put_open_int', 'put_delta', 'put_gamma', 'put_theta',
+        'put_vega', 'put_rho', 'put_theo', 'time_till_exp'
     ]
     assert all(col in formatted_df.columns for col in expected_columns)
 

@@ -1,0 +1,37 @@
+.compact-table {
+    font-size: 9px !important;
+    table-layout: fixed;
+    width: 100%;
+}
+.compact-table th, .compact-table td {
+    padding: 1px 2px !important;
+    text-align: center !important;
+    vertical-align: middle !important;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.strike-col {
+    background-color: #343a40 !important;
+    color: white !important;
+    font-weight: bold;
+    width: 60px;
+}
+.qty-col {
+    width: 80px;
+}
+.greek-col {
+    width: 35px;
+}
+.compact-btn {
+    padding: 0px !important;
+    font-size: 10px !important;
+    height: 16px !important;
+    width: 16px !important;
+    line-height: 14px !important;
+}
+.qty-label {
+    display: inline-block;
+    min-width: 12px;
+    font-weight: bold;
+}

@@ -74,15 +74,19 @@ def is_parsable(date):
 
 def format_data(data, today_ddt, tzinfo):
     """
-    Formats the options data.
+    Formats the options data, extracting all Greeks and market data.
 
-    :param data: The options data.
+    :param data: The raw options data list.
     :param today_ddt: The current date and time.
     :param tzinfo: The timezone info.
-    :return: The formatted options data.
+    :return: The formatted options data as a DataFrame.
     """
     logger.debug("Formatting data...")
-    keys_to_keep = ["option", "iv", "open_interest", "delta", "gamma"]
+    # Expanded keys to include all requested Greeks and market values.
+    keys_to_keep = [
+        "option", "iv", "open_interest", "delta", "gamma",
+        "theta", "vega", "rho", "theo"
+    ]
     data = pd.DataFrame([{k: d[k] for k in keys_to_keep if k in d} for d in data])
 
     # Extract strike, expiration date, and option type
@@ -100,7 +104,7 @@ def format_data(data, today_ddt, tzinfo):
     calls = data[data["option_type"] == "C"].copy()
     puts = data[data["option_type"] == "P"].copy()
 
-    # Rename columns for merging
+    # Rename columns for merging with specific prefixes
     calls = calls.rename(
         columns={
             "option": "calls",
@@ -108,6 +112,10 @@ def format_data(data, today_ddt, tzinfo):
             "open_interest": "call_open_int",
             "delta": "call_delta",
             "gamma": "call_gamma",
+            "theta": "call_theta",
+            "vega": "call_vega",
+            "rho": "call_rho",
+            "theo": "call_theo",
         }
     )
     puts = puts.rename(
@@ -117,10 +125,14 @@ def format_data(data, today_ddt, tzinfo):
             "open_interest": "put_open_int",
             "delta": "put_delta",
             "gamma": "put_gamma",
+            "theta": "put_theta",
+            "vega": "put_vega",
+            "rho": "put_rho",
+            "theo": "put_theo",
         }
     )
 
-    # Merge calls and puts on strike and expiration
+    # Merge calls and puts on strike and expiration to create a single row per strike/expiry.
     data = pd.merge(
         calls[
             [
@@ -131,6 +143,10 @@ def format_data(data, today_ddt, tzinfo):
                 "call_open_int",
                 "call_delta",
                 "call_gamma",
+                "call_theta",
+                "call_vega",
+                "call_rho",
+                "call_theo",
             ]
         ],
         puts[
@@ -142,6 +158,10 @@ def format_data(data, today_ddt, tzinfo):
                 "put_open_int",
                 "put_delta",
                 "put_gamma",
+                "put_theta",
+                "put_vega",
+                "put_rho",
+                "put_theo",
             ]
         ],
         on=["expiration_date", "strike_price"],
@@ -183,8 +203,8 @@ def calc_exposures(
     logger.debug(f"Calculating exposures for ticker: {ticker}, expiration: {expir}")
     if option_data.empty:
         logger.warning("Option data is empty, returning empty result.")
-        # Return a tuple of Nones with the expected length
-        return (pd.DataFrame(), None, None, None, None, None, None, None, {}, {}, {}, {}, None, None, {}, {})
+        # Return a tuple of Nones with the expected length (15)
+        return (pd.DataFrame(), None, None, None, None, None, None, {}, {}, {}, {}, 0, 0, {}, {})
     dividend_yield = 0.0  # assume 0
     risk_free_rate = get_risk_free_rate()
 
@@ -299,7 +319,8 @@ def calc_exposures(
         )[0],
         0,
     )
-    # Calculate total and scale down
+    # Calculate total Greek exposures by summing Call and Put components and scaling to billions.
+    # Delta and Gamma are additive, while Vanna and Charm are calculated as the difference between Call and Put exposures.
     option_data["total_delta"] = (
         option_data["call_dex"].to_numpy() + option_data["put_dex"].to_numpy()
     ) / 10**9
@@ -516,6 +537,9 @@ def calc_exposures(
         zerogamma = 0
         logger.warning(f"Gamma flip not found for {ticker} {expir}")
 
+    # Returns a standardized 15-element tuple used throughout the application.
+    # The elements include the processed DataFrame, market metadata, calculated exposures,
+    # and volatility averages for both calls and puts.
     return (
         option_data,
         today_ddt,
