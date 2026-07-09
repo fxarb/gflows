@@ -222,23 +222,24 @@ def calc_exposures(
 
     # ---=== CALCULATE EXPOSURES ===---
     option_data["call_dex"] = (
-        option_data["call_delta"].to_numpy() * call_open_interest * spot_price
+        option_data["call_delta"].to_numpy() * call_open_interest * spot_price * 0.01
     )
     option_data["put_dex"] = (
-        option_data["put_delta"].to_numpy() * put_open_interest * spot_price
+        option_data["put_delta"].to_numpy() * put_open_interest * spot_price * 0.01
     )
     option_data["call_gex"] = (
         option_data["call_gamma"].to_numpy()
         * call_open_interest
         * spot_price
         * spot_price
+        * 0.01
     )
     option_data["put_gex"] = (
         option_data["put_gamma"].to_numpy()
         * put_open_interest
         * spot_price
         * spot_price
-        * -1
+        * 0.01
     )
     logger.debug(f"np_spot_price: {np_spot_price}, opt_put_ivs: {opt_put_ivs}, time_till_exp: {time_till_exp}, dividend_yield: {dividend_yield}, put_open_interest: {put_open_interest}, put_dp: {put_dp}, put_pdf_dp: {put_pdf_dp}")
     option_data["call_vex"] = np.where(
@@ -307,10 +308,10 @@ def calc_exposures(
         option_data["call_gex"].to_numpy() + option_data["put_gex"].to_numpy()
     ) / 10**9
     option_data["total_vanna"] = (
-        option_data["call_vex"].to_numpy() - option_data["put_vex"].to_numpy()
+        option_data["call_vex"].to_numpy() + option_data["put_vex"].to_numpy()
     ) / 10**9
     option_data["total_charm"] = (
-        option_data["call_cex"].to_numpy() - option_data["put_cex"].to_numpy()
+        option_data["call_cex"].to_numpy() + option_data["put_cex"].to_numpy()
     ) / 10**9
 
     # group all options by strike / expiration then average their IVs
@@ -480,11 +481,11 @@ def calc_exposures(
     # delta exposure
     totaldelta["all"] = (call_delta_ex.sum(axis=1) + put_delta_ex.sum(axis=1)) / 10**9
     # gamma exposure
-    totalgamma["all"] = (call_gamma_ex.sum(axis=1) - put_gamma_ex.sum(axis=1)) / 10**9
+    totalgamma["all"] = (call_gamma_ex.sum(axis=1) + put_gamma_ex.sum(axis=1)) / 10**9
     # vanna exposure
-    totalvanna["all"] = (call_vanna_ex.sum(axis=1) - put_vanna_ex.sum(axis=1)) / 10**9
+    totalvanna["all"] = (call_vanna_ex.sum(axis=1) + put_vanna_ex.sum(axis=1)) / 10**9
     # charm exposure
-    totalcharm["all"] = (call_charm_ex.sum(axis=1) - put_charm_ex.sum(axis=1)) / 10**9
+    totalcharm["all"] = (call_charm_ex.sum(axis=1) + put_charm_ex.sum(axis=1)) / 10**9
 
     # Find Delta Flip Point
     zero_cross_idx = np.where(np.diff(np.sign(totaldelta["all"])))[0]
